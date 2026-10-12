@@ -86,6 +86,10 @@ const manifest = JSON.parse(data);
 assert.equal(new URL(manifest.start_url, manifestUrl).href, PWA + 'academy/');
 assert.equal(new URL(manifest.scope, manifestUrl).href, PWA);
 assert.equal(new URL(manifest.id, manifestUrl).href, PWA + 'academy/');
+// What Chrome itself computes for the app id (stable across versions; that is what identifies the install)
+const appIdResult = await cdp.send('Page.getAppId');
+console.log('Chrome app id: ' + JSON.stringify(appIdResult));
+// This headless Chromium returns nothing for the app id, so it is reported but not asserted; the id is resolved against the manifest above
 assert.equal(manifest.name, 'PvP Academy');
 for (const icon of manifest.icons) {
 	const res = await page.request.get(new URL(icon.src, manifestUrl).href);
@@ -182,7 +186,19 @@ assert.equal(off.touch, false);
 assert.equal(off.install, 0);
 assert.equal(off.workers, 0);
 assert.deepEqual(offErrors, []);
-console.log('flag off: ' + JSON.stringify(off));
+
+// Upstream's own registration reaches the (now filled-in) worker file from the home and battle pages without a version.
+// It must stay inert there: no caches, no handlers, whatever it does with the page.
+for (const url of [OFF, OFF + 'battle.php', OFF + 'train/']) {
+	await offPage.goto(url, { waitUntil: 'load' });
+	await offPage.waitForTimeout(1500);
+	await offPage.reload({ waitUntil: 'load' });
+	await offPage.waitForTimeout(1500);
+	const state = await offPage.evaluate(async () => ({ caches: await caches.keys(), scripts: (await navigator.serviceWorker.getRegistrations()).map(r => (r.active || r.installing || r.waiting || {}).scriptURL) }));
+	assert.deepEqual(state.caches, [], `${url}: the flag-off worker must not create caches`);
+	state.scripts.forEach(s => assert.ok(!/\?v=/.test(s || ''), `${url}: flag-off registration should be the unversioned upstream one`));
+}
+console.log('flag off: ' + JSON.stringify(off) + '; home, battle and train register no caching');
 
 await browser.close();
 await stopServer(PWA_PORT);

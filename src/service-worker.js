@@ -14,25 +14,11 @@
 * is cached, and ranking files are only cached once a format has been opened.
 */
 
-var VERSION = new URL(self.location.href).searchParams.get('v') || 'dev';
+var VERSION = new URL(self.location.href).searchParams.get('v');
 var ASSET_CACHE = 'assets-' + VERSION;
 var PAGE_CACHE = 'pages-' + VERSION;
 var MAX_PAGES = 40;
 var SLOW_NETWORK_MS = 4000;
-
-self.addEventListener('install', function () {
-	self.skipWaiting();
-});
-
-self.addEventListener('activate', function (event) {
-	event.waitUntil(
-		caches.keys().then(function (names) {
-			return Promise.all(names.filter(function (n) { return n !== ASSET_CACHE && n !== PAGE_CACHE; }).map(function (n) { return caches.delete(n); }));
-		}).then(function () {
-			return self.clients.claim();
-		})
-	);
-});
 
 function trim(cache) {
 	return cache.keys().then(function (keys) {
@@ -109,24 +95,42 @@ function staleWhileRevalidate(request) {
 	});
 }
 
-self.addEventListener('fetch', function (event) {
-	var request = event.request;
-	var url = new URL(request.url);
+// Upstream registers this file without a version from the home and battle pages. With the PWA off (the default) that is
+// the only way it gets here, and it must behave exactly like the empty file it replaces: no listeners, no caches.
+if (VERSION) {
+	self.addEventListener('install', function () {
+		self.skipWaiting();
+	});
 
-	if (request.method !== 'GET' || url.origin !== self.location.origin || request.headers.has('range')) {
-		return;
-	}
+	self.addEventListener('activate', function (event) {
+		event.waitUntil(
+			caches.keys().then(function (names) {
+				return Promise.all(names.filter(function (n) { return n !== ASSET_CACHE && n !== PAGE_CACHE; }).map(function (n) { return caches.delete(n); }));
+			}).then(function () {
+				return self.clients.claim();
+			})
+		);
+	});
 
-	// The Train mode's database endpoints and any other PHP data endpoint are always live
-	if (/\/data\/.*\.php$/.test(url.pathname)) {
-		return;
-	}
+	self.addEventListener('fetch', function (event) {
+		var request = event.request;
+		var url = new URL(request.url);
 
-	if (request.mode === 'navigate') {
-		event.respondWith(pageStrategy(request));
-	} else if (url.searchParams.has('v') || /\/js\/libs\//.test(url.pathname)) {
-		event.respondWith(cacheFirst(request));
-	} else if (request.destination === 'image' || request.destination === 'font') {
-		event.respondWith(staleWhileRevalidate(request));
-	}
-});
+		if (request.method !== 'GET' || url.origin !== self.location.origin || request.headers.has('range')) {
+			return;
+		}
+
+		// The Train mode's database endpoints and any other PHP data endpoint are always live
+		if (/\/data\/.*\.php$/.test(url.pathname)) {
+			return;
+		}
+
+		if (request.mode === 'navigate') {
+			event.respondWith(pageStrategy(request));
+		} else if (url.searchParams.has('v') || /\/js\/libs\//.test(url.pathname)) {
+			event.respondWith(cacheFirst(request));
+		} else if (request.destination === 'image' || request.destination === 'font') {
+			event.respondWith(staleWhileRevalidate(request));
+		}
+	});
+}

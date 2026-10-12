@@ -423,7 +423,8 @@ var InterfaceMaster = (function () {
 				});
 
 				// Safari on iOS never fires beforeinstallprompt, so say how to do it by hand
-				if (/iphone|ipad|ipod/i.test(window.navigator.userAgent)) {
+				// (iPadOS Safari reports a Mac user agent, so a touch screen on a "Mac" is an iPad)
+				if (/iphone|ipad|ipod/i.test(window.navigator.userAgent) || (/Macintosh/.test(window.navigator.userAgent) && window.navigator.maxTouchPoints > 1)) {
 					$box.removeClass("hide").find(".install-btn").addClass("hide");
 					$box.find(".install-ios").removeClass("hide");
 				}

@@ -103,13 +103,13 @@ The Academy can be installed to a phone's home screen and used offline. It is of
 What it does when on:
 
 - Every page links `data/manifest-academy.json` instead of the stock manifest, so "Add to Home Screen" from any page gives an app named "PvP Academy" that opens the Academy. The name and icons are placeholders: change `name`/`short_name` in the manifest and the `apple-mobile-web-app-title` tag in `header.php`. The icons in `img/academy/` are original artwork.
-- `service-worker.js` is registered by absolute, versioned URL (`service-worker.js?v=<site version>`). Pages are network-first (the saved copy is used only when the network fails or is slow), versioned files are cache-first, and everything else, including the Train mode's database endpoints, passes through untouched.
+- `service-worker.js` is registered by absolute, versioned URL (a request for it without `?v=`, which is how upstream's own registration reaches it, gets a worker with no handlers, i.e. the old empty file's behavior) (`service-worker.js?v=<site version>`). Pages are network-first (the saved copy is used only when the network fails or is slow), versioned files are cache-first, and everything else, including the Train mode's database endpoints, passes through untouched.
 - The Academy shows an Install button where the browser supports it (Chrome and Edge). On iPhone and iPad it explains Share, then Add to Home Screen.
 - If a format's ranking can't be loaded, such as one never opened while online, the quiz says so and goes back to the last format that loaded instead of hanging.
 
 Things to know when deploying:
 
-- **Bump `$SITE_VERSION` in `header.php` on every upload.** The worker and the cached files are keyed to it. If you upload changes without bumping it, testers keep the old scripts until they clear site data. A new version installs a new worker, which takes over immediately and deletes the old caches.
+- **Bump `$SITE_VERSION` in `header.php` on every upload, then purge the host's cache.** The worker and the cached files are keyed to the version. If you upload changes without bumping it, testers keep the old scripts until they clear site data. A new version installs a new worker, which takes over immediately and deletes the old caches. On SiteGround, also purge the dynamic cache (SG Optimizer or Site Tools), or it can keep serving HTML that still points at the old version.
 - **Offline covers the Academy**, and only the formats that have been opened while online (the first open of each downloads its ranking file). Train and Battle need more data than is cached, so they are not promised offline.
 - **On iOS the installed app has its own storage**, separate from Safari, so quiz progress built up in the browser does not appear in the installed app.
 - Locally, `$WEB_ROOT` containing `src` randomizes the version on every page load. For testing the worker, pin it with the `SITE_VERSION_OVERRIDE` environment variable and enable the flag with `PWA_ENABLED=1`.
