@@ -98,21 +98,51 @@ Team shape letters are derived from the type chart. Two Pokemon share a letter w
 
 ### Installable app (PWA)
 
-The Academy can be installed to a phone's home screen and used offline. It is off by default, so a stock deployment behaves exactly as upstream does. To turn it on, set `$PWA_ENABLED = true` in `src/modules/config.php`, on a site served over HTTPS (service workers do not run on plain HTTP, except on localhost). Also change `$WEB_HOST` there from `http://` to `https://`.
+The Academy can be installed to a phone's home screen and used offline. It is off by default, so a stock deployment behaves exactly as upstream does. To turn it on, set `$PWA_ENABLED = true` in your `src/modules/config.local.php` (copied from `config.local.example.php`; it is untracked, so merges and uploads never overwrite it), on a site served over HTTPS (service workers do not run on plain HTTP, except on localhost). Set `$WEB_HOST` there to `https://` as well, and `$WEB_ROOT` for where the site lives.
 
 What it does when on:
 
-- Every page links `data/manifest-academy.json` instead of the stock manifest, so "Add to Home Screen" from any page gives an app named "PvP Academy" that opens the Academy. The name and icons are placeholders: change `name`/`short_name` in the manifest and the `apple-mobile-web-app-title` tag in `header.php`. The icons in `img/academy/` are original artwork.
+- Every page links `academy/manifest.json` instead of the stock manifest, so "Add to Home Screen" from any page gives an app named "PvP Academy" that opens the Academy. The name and icons are placeholders: change `name`/`short_name` in the manifest and the `apple-mobile-web-app-title` tag in `header.php`. The icons in `img/academy/` are original artwork.
 - `service-worker.js` is registered by absolute, versioned URL (a request for it without `?v=`, which is how upstream's own registration reaches it, gets a worker with no handlers, i.e. the old empty file's behavior) (`service-worker.js?v=<site version>`). Pages are network-first (the saved copy is used only when the network fails or is slow), versioned files are cache-first, and everything else, including the Train mode's database endpoints, passes through untouched.
 - The Academy shows an Install button where the browser supports it (Chrome and Edge). On iPhone and iPad it explains Share, then Add to Home Screen.
 - If a format's ranking can't be loaded, such as one never opened while online, the quiz says so and goes back to the last format that loaded instead of hanging.
 
 Things to know when deploying:
 
-- **Bump `$SITE_VERSION` in `header.php` on every upload, then purge the host's cache.** The worker and the cached files are keyed to the version. If you upload changes without bumping it, testers keep the old scripts until they clear site data. A new version installs a new worker, which takes over immediately and deletes the old caches. On SiteGround, also purge the dynamic cache (SG Optimizer or Site Tools), or it can keep serving HTML that still points at the old version.
+- **Bump the version on every upload, then purge the host's cache.** Edit `src/academy/version.txt` (the data sync script does it for you); upstream's own `$SITE_VERSION` line is left alone. The worker and the cached files are keyed to the version. If you upload changes without bumping it, testers keep the old scripts until they clear site data. A new version installs a new worker, which takes over immediately and deletes the old caches. On SiteGround, also purge the dynamic cache (SG Optimizer or Site Tools), or it can keep serving HTML that still points at the old version.
 - **Offline covers the Academy**, and only the formats that have been opened while online (the first open of each downloads its ranking file). Train and Battle need more data than is cached, so they are not promised offline.
 - **On iOS the installed app has its own storage**, separate from Safari, so quiz progress built up in the browser does not appear in the installed app.
 - Locally, `$WEB_ROOT` containing `src` randomizes the version on every page load. For testing the worker, pin it with the `SITE_VERSION_OVERRIDE` environment variable and enable the flag with `PWA_ENABLED=1`.
+
+### Updating from upstream
+
+Upstream (`pvpoke/pvpoke`) changes often: rankings and gamemaster data most days, code now and then. The Academy is set up so that taking those changes does not cost any of its customizations.
+
+**What is whose.** `src/data/` is entirely upstream's: the Academy keeps nothing there, which is what makes a data refresh a straight restore. Everything the Academy adds is a new file (`src/js/academy/`, `src/academy/`, `src/img/academy/`, `scripts/academy/`, `tests/academy/`) or one of 14 small hooks in files upstream owns. Every hook is listed in `tests/academy/hooks.json`, and `hooks.test.mjs` fails if a merge drops one. Deployment settings go in an untracked `src/modules/config.local.php` (copy `config.local.example.php`), so uploads and merges never overwrite them. The Academy's own cache version is `src/academy/version.txt`, appended to upstream's `$SITE_VERSION`, so refreshing data bumps every `?v=` URL without editing upstream's version line.
+
+**Refreshing data only** (the common case, one command):
+
+```
+scripts/academy/sync-upstream-data.sh --check    # what would change
+scripts/academy/sync-upstream-data.sh            # restore src/data from upstream (including files upstream deleted), bump the version
+PLAYWRIGHT_PATH=/path/to/node_modules/ scripts/academy/run-gates.sh
+```
+
+It refuses if upstream also changed code in the same range, because new data can need new code. In that case do a full merge. It stages but never commits. Afterwards, upload, bump nothing by hand, and purge the host's cache.
+
+**Taking upstream code** (periodic, reviewed): `git fetch upstream master`, then merge (not rebase, so history stays honest) into your branch, resolve any conflict by re-applying the hook it lists, and run the full gates. As a rehearsal, I took the branch back to upstream as it stood ten weeks earlier, re-applied the Academy's changes there, and merged the 98 upstream commits since (312 data files, 51 code files, including `Battle.js`, `ActionLogic.js` and `header.php`). It merged with no conflicts and produced exactly the current tree. A clean textual merge does not prove the engine still behaves the same, which is what the gates are for:
+
+| Gate | Catches |
+|---|---|
+| unit tests, `enginereasons` | upstream rewording the engine's decision log; quiz and turn math |
+| `hooks.test` | a merge dropping an Academy hook |
+| `engine-check` | the turn model drifting from the simulator's |
+| `engine-replay-check` | the stand-in battle disagreeing with the engine (blocking) |
+| `cups-check` | cups added or removed, a cup gaining a team rule, borrowed-ranking bans |
+| `mega-check` | gamemaster schema changes (supermega tag, third Charged Move) |
+| `pwa-check`, `ui-check`, `phone-check`, `audit-check`, live/advice/lookahead checks | the install path, the quiz, the Coach and timing panel in a real browser |
+
+The tests choose their fixtures from the data (which Mega leads, which cups to open), so a refresh changes their picks instead of failing them. The measurements quoted in this README are a snapshot of the data at upstream commit `c15fb6f` (2026-10-09): the Dragonite ratings, the moveset-difference counts, the throw counts, the format count. They will drift as data changes and are not asserted anywhere.
 
 ### Tests
 

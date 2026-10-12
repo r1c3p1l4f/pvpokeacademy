@@ -112,8 +112,11 @@ console.log('worker controls the page: ' + scriptUrl);
 
 // ---- Warm a second format online, then go offline ----
 const formats = await page.evaluate(() => $('.academy-league option').map((i, o) => o.value).get());
-const warm = formats.find(v => /\|mega$/.test(v) && v.startsWith('1500'));
-assert.ok(warm, 'Mega Great League should be on the menu');
+// Any two cup formats will do (picked from the menu, so a data refresh changes the picks, not the test)
+const cupFormats = formats.filter(v => v !== '1500|all' && v.startsWith('1500|'));
+assert.ok(cupFormats.length >= 2, 'need two 1500 CP cups on the menu');
+const warm = cupFormats[0];
+const warmLabel = await page.evaluate(v => $(".academy-league option[value='" + v + "']").text(), warm);
 await page.selectOption('.academy-league', warm);
 await page.waitForFunction(v => JSON.parse(localStorage.getItem('academy.settings')).format === v, warm);
 await page.waitForTimeout(2500);
@@ -137,12 +140,12 @@ await page.waitForTimeout(1500);
 assert.ok(await page.isHidden('.academy-load-error'), 'a format opened online should load offline');
 
 // A format that was never opened cannot load offline: it must recover, not hang
-const cold = formats.find(v => /\|retro$/.test(v)) || formats.find(v => !['1500|all', warm].includes(v) && /\|(spectral|trail|willpower|tsuki|fantasy)$/.test(v));
+const cold = cupFormats[1];
 assert.ok(cold, 'no cold format to try');
 await page.selectOption('.academy-league', cold);
 await page.waitForSelector('.academy-load-error:not(.hide)', { timeout: 15000 });
 const message = await page.textContent('.academy-load-error');
-assert.match(message, /Couldn't load .*Showing Mega Great League instead/);
+assert.ok(message.startsWith("Couldn't load") && message.includes('Showing ' + warmLabel + ' instead'), message);
 assert.equal(await page.inputValue('.academy-league'), warm, 'menu should go back to the last format that loaded');
 assert.ok(await page.evaluate(() => InterfaceMaster.getInstance().getQuestion() !== null), 'the previous format should still be playable');
 console.log('uncached format offline: ' + message);

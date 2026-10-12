@@ -1,7 +1,7 @@
 /*
 * Train mode with Mega Pokemon, including one with a third Charged Move.
 *
-* Imports a manual team led by Mega Malamar (Fast Move plus three Charged Moves) in the Mega Great League, plays
+* Imports a manual team led by a Mega with three Charged Moves (taken from the Mega Great League ranking), plays
 * it with the Coach on Learn, and checks that all three Charged Move buttons exist and carry the Coach's per-button
 * count, that prompts can name the third move, and that nothing throws.
 *
@@ -38,7 +38,22 @@ async function importTeam(index, csv) {
 }
 
 // SIDE=opp puts the Megas on the AI's side instead (the preset pools have no Megas, so importing is the only way the AI fields one)
-const MEGAS = 'malamar_mega,PSYWAVE,FOUL_PLAY,SUPER_POWER,PSYBEAM_PLUS\nsableye_mega,SHADOW_CLAW,FOUL_PLAY,DAZZLING_GLEAM\nmedicham_mega,PSYCHO_CUT,DYNAMIC_PUNCH,ICE_PUNCH';
+// The team comes from the Mega Great League ranking: the lead is a Mega whose ranked moveset has three Charged Moves,
+// followed by two other Megas, so a data refresh changes the team rather than breaking the test.
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const ranking = JSON.parse(fs.readFileSync(path.join(repo, 'src/data/rankings/mega/overall/rankings-1500.json'), 'utf8'));
+const gamemaster = JSON.parse(fs.readFileSync(path.join(repo, 'src/data/gamemaster.json'), 'utf8'));
+const megasRanked = ranking.filter(r => /_mega|_primal/.test(r.speciesId));
+const lead = megasRanked.find(r => r.moveset.length === 4);
+assert.ok(lead, 'no three-move Mega in the Mega Great League ranking');
+const rest = megasRanked.filter(r => r !== lead && r.moveset.length === 3).slice(0, 2);
+assert.equal(rest.length, 2, 'need two more Megas to fill the team');
+const csv = r => [r.speciesId, ...r.moveset].join(',');
+const MEGAS = [lead, ...rest].map(csv).join('\n');
+const leadName = gamemaster.pokemon.find(p => p.speciesId === lead.speciesId).speciesName.split(' ')[0].toLowerCase();
 const PLAIN = 'azumarill\nregisteel\nskarmory';
 const oppSide = process.env.SIDE === 'opp';
 await importTeam(0, oppSide ? PLAIN : MEGAS);
@@ -101,7 +116,7 @@ while (Date.now() - t0 < MAX_MS) {
 await browser.close();
 console.log(JSON.stringify(seen, null, 1));
 if (!oppSide) {
-	assert.ok(listed.join(' ').toLowerCase().includes('malamar'), 'Mega Malamar was not accepted into the player team');
+	assert.ok(listed.join(' ').toLowerCase().includes(leadName), `${leadName} was not accepted into the player team`);
 	assert.equal(info.bars, 3, 'expected three Charged Move buttons for the lead');
 	assert.ok(seen.thirdButtonShown, 'third Charged Move button never showed');
 	assert.ok(seen.thirdBadge, 'Coach put no count/badge on the third button');

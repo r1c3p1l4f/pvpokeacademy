@@ -231,9 +231,13 @@ test('Mega cups pull Megas up from below the cutoff, and three-move Megas keep a
 	const megasWide = widened.filter(p => p.mega).length;
 	assert.ok(megasWide > megasTop && megasWide - megasTop <= 10, `megas ${megasTop} -> ${megasWide}`);
 	assert.equal(widened.length - top.length, megasWide - megasTop);
-	const malamar = widened.find(p => p.id === 'malamar_mega');
-	assert.equal(malamar.charged.length, 3);
-	assert.equal(widened.find(p => p.id === 'sableye_mega').charged.length, 2);
+	// Every Mega keeps exactly the Charged Moves its ranking moveset lists, so three-move Megas keep all three.
+	// (Derived from the data, not tied to particular Pokemon, so a data refresh does not break it.)
+	const byId = {}; mega.forEach(r => { byId[r.speciesId] = r; });
+	const megaEntries = widened.filter(p => p.mega);
+	for (const p of megaEntries) assert.equal(p.charged.length, byId[p.id].moveset.length - 1, p.id);
+	assert.ok(megaEntries.some(p => p.charged.length === 3), 'expected at least one three-move Mega in the Mega cup pool');
+	assert.ok(megaEntries.some(p => p.charged.length === 2), 'expected at least one two-move Mega in the Mega cup pool');
 	// The open cup has no Megas at all, so nothing is added
 	assert.equal(pool.filter(p => p.mega).length, 0);
 });

@@ -7,6 +7,11 @@
 */
 import { createRequire } from 'module';
 import assert from 'node:assert/strict';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const require = createRequire(process.env.PLAYWRIGHT_PATH || '/node-tools/node_modules/');
 const { chromium } = require('playwright');
@@ -72,16 +77,18 @@ for (const f of formats) {
 		const KNOWN = ['name', 'title', 'include', 'exclude', 'partySize', 'levelCap', 'presetOnly', 'excludeLowPokemon', 'rankingAlias', 'league', 'link', 'overrides', 'useDefaultMovesets'];
 		const unknownRules = Object.keys(cupData || {}).filter(k => !KNOWN.includes(k));
 
-		return { bannedPresent, unknownRules, poolSize: pool.length, megas: megas.length, three: three.length, loadoutBad, types: Object.keys(types).length, swap: types['swap.stayOrSwap'] || 0, swapWithMega, failures: failures.slice(0, 3), failureCount: failures.length };
+		return { cp, borrowed: !!(info.exclude && info.exclude.length), bannedPresent, unknownRules, poolSize: pool.length, megas: megas.length, three: three.length, loadoutBad, types: Object.keys(types).length, swap: types['swap.stayOrSwap'] || 0, swapWithMega, failures: failures.slice(0, 3), failureCount: failures.length };
 	}, [f, QUESTIONS]);
 
 	rows.push({ ...f, ...r });
 }
 
-// The real UI path: pick formats from the menu (including Little Cup at 500 CP and a Mega cup) and page through flashcards.
+// The real UI path: pick formats from the menu and page through flashcards. Which ones is derived from what the data has
+// (a 500 CP cup, a cup with Megas, a cup that borrows another's ranking), so a data refresh changes the picks, not the test.
 // Each pick must actually load that format's pool: the question's Pokemon have to be in the new ranking, not left over.
-const uiFormats = formats.filter(f => /Little|Mega Great|Championship|Retro/.test(f.label));
-assert.ok(uiFormats.length >= 3, 'expected Little, Mega and a borrowed-ranking cup on the menu');
+const pick = (pred) => rows.find(pred);
+const uiFormats = [rows[0], pick(r => r.cp === 500), pick(r => r.megas > 0), pick(r => r.borrowed)].filter((r, i, all) => r && all.indexOf(r) === i).map(r => ({ value: r.value, label: r.label }));
+assert.ok(uiFormats.length >= 2, 'expected the UI phase to cover more than one format');
 
 for (const f of uiFormats) {
 	await page.selectOption('.academy-league', f.value);
@@ -118,8 +125,20 @@ for (const r of rows) {
 }
 
 assert.equal(rows.filter(r => r.failureCount || r.loadoutBad.length || r.poolSize < 20 || r.bannedPresent.length || r.unknownRules.length).length, 0, 'a format failed');
-assert.ok(rows.some(r => /Championship/.test(r.label)), 'P!P Championship Series should be on the menu with its own bans');
-assert.ok(rows.some(r => /Chrysalis|Retro|Classic|Fantasy/.test(r.label)), 'cups outside the formats list should be on the menu');
+// Whether the menu offers what the data says it should, derived from the gamemaster and the ranking directory rather than
+// from names: every cup that has a ranking file, and every cup that borrows another's ranking and adds bans of a kind the
+// quiz can apply.
+const gmData = JSON.parse(fs.readFileSync(path.join(repo, 'src/data/gamemaster.json'), 'utf8'));
+const cupByName = Object.fromEntries(gmData.cups.map(c => [c.name, c]));
+const onMenu = new Set(rows.map(r => r.value.split('|')[1]));
+const rankingDirs = fs.readdirSync(path.join(repo, 'src/data/rankings'));
+const missingFromMenu = rankingDirs.filter(d => d !== 'all' && cupByName[d] && !onMenu.has(d));
+assert.deepEqual(missingFromMenu, [], 'cups with ranking data are missing from the menu: ' + missingFromMenu);
+
+const extraBans = c => (c.exclude || []).filter(f => !((cupByName[c.rankingAlias] || {}).exclude || []).some(b => b.filterType === f.filterType && b.values.join() === f.values.join()));
+const borrowingMissing = gmData.cups.filter(c => c.rankingAlias && extraBans(c).length && extraBans(c).every(f => ['id', 'tag', 'type'].includes(f.filterType)) && !onMenu.has(c.name)).map(c => c.name);
+assert.deepEqual(borrowingMissing, [], 'borrowed-ranking cups with their own bans are missing from the menu: ' + borrowingMissing);
+assert.ok(rows.filter(r => r.borrowed).every(r => r.bannedPresent.length === 0), 'a banned Pokemon is in a borrowed-ranking pool');
 assert.ok(rows.some(r => r.three > 0), 'no format exercised a three-move Mega');
 assert.equal(errors.length, 0, errors.join(' | '));
 console.log('Cup checks passed');
