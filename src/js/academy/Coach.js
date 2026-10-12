@@ -112,14 +112,6 @@ var Coach = (function () {
 
 	// ---------- Helpers ----------
 
-	function safeDamage(attacker, defender, move) {
-		try {
-			return DamageCalculator.damage(attacker, defender, move);
-		} catch (e) {
-			return move.damage || 0;
-		}
-	}
-
 	var pluralize = TimingFeedback.pluralize;
 
 	function esc(str) {
@@ -132,78 +124,29 @@ var Coach = (function () {
 	* The prompts come from the engine itself: ActionLogic.decideAction, the same function that decides when the Battle
 	* page's simulated Pokemon throw, including its timing optimizer and its KO, energy cap and opponent-burst checks.
 	* The coach adds no policy of its own. All it does is hand the engine the state it would see at your next action turn.
-	*
-	* The engine reads cooldown, energy and HP off the Pokemon, so those are set to their projected values for the call
-	* and restored in a finally block. The call is synchronous, so the battle loop can't run in between.
+	* EngineAdvisor does the asking (stand-in battle, state patched and restored); the replay test pins it to the engine.
 	*/
 
 	var engineWarned = false;
 
-	// What the engine would see at the turn you next act, after `taps` more Fast Moves of yours.
-	// Only state is advanced here (cooldowns, energy, HP from Fast Moves registering), never the decision.
-	function projectState(me, opp, taps) {
-		var a = me.fastMove.turns;
-		var b = opp.fastMove.turns;
-		var myCd = me.cooldown / TurnMath.TURN_MS;
-		var oppCd = opp.cooldown / TurnMath.TURN_MS;
-		var turn = Math.max(1, myCd) + taps * a; // turns from now until that decision
-		var oppLandings = TurnMath.landingsBefore(oppCd, b, turn);
-		var myLandings = (myCd >= 2 ? 1 : 0) + taps; // a Fast Move in flight, plus each tap, registers before then
-		var nextTap = Math.max(oppCd, 1);
-		var cd;
-
-		if (nextTap < turn) {
-			var lastTap = nextTap + Math.floor((turn - 1 - nextTap) / b) * b;
-
-			cd = Math.max(0, b - (turn - lastTap));
-		} else {
-			cd = Math.max(0, oppCd - turn);
-		}
+	// What the stand-in battle needs to know about the live one
+	function liveContext() {
+		var queue = battle.getQueuedActions();
 
 		return {
-			meEnergy: Math.min(TurnMath.MAX_ENERGY, me.energy + myLandings * me.fastMove.energyGain),
-			meHp: me.hp - oppLandings * safeDamage(opp, me, opp.fastMove),
-			oppEnergy: Math.min(TurnMath.MAX_ENERGY, opp.energy + oppLandings * opp.fastMove.energyGain),
-			oppHp: opp.hp - myLandings * safeDamage(me, opp, me.fastMove),
-			oppCooldown: cd * TurnMath.TURN_MS
+			turns: battle.getTurns(),
+			mode: battle.getMode(),
+			queuedFast: queue.filter(function (a) { return a.actor === 0 && a.type === "fast"; }).length,
+			coachDefaults: true // the coach always asks for the engine's best timing
 		};
 	}
 
-	// Ask the engine what it would do, and why. Returns {action, reasons} where action is a Charged Move index or -1 to tap.
 	function askEngine(me, opp, state) {
-		var saved = {
-			me: { cooldown: me.cooldown, energy: me.energy, hp: me.hp, timing: me.optimizeMoveTiming, farm: me.farmEnergy },
-			opp: { cooldown: opp.cooldown, energy: opp.energy, hp: opp.hp }
-		};
+		return EngineAdvisor.ask(me, opp, state, liveContext());
+	}
 
-		try {
-			me.cooldown = 0;
-			me.energy = state.meEnergy;
-			me.hp = Math.max(1, state.meHp);
-			me.optimizeMoveTiming = true; // the coach always asks for the engine's best timing
-			me.farmEnergy = false;
-			opp.cooldown = state.oppCooldown;
-			opp.energy = state.oppEnergy;
-			opp.hp = Math.max(1, state.oppHp);
-
-			var run = battle.withDecisionLog(function () {
-				return ActionLogic.decideAction(battle, me, opp);
-			});
-
-			return {
-				action: run.result && run.result.type === "charged" ? run.result.value : -1,
-				reasons: run.entries.map(function (e) { return e.string.trim(); })
-			};
-		} finally {
-			me.cooldown = saved.me.cooldown;
-			me.energy = saved.me.energy;
-			me.hp = saved.me.hp;
-			me.optimizeMoveTiming = saved.me.timing;
-			me.farmEnergy = saved.me.farm;
-			opp.cooldown = saved.opp.cooldown;
-			opp.energy = saved.opp.energy;
-			opp.hp = saved.opp.hp;
-		}
+	function projectState(me, opp, taps) {
+		return EngineAdvisor.projectState(me, opp, taps);
 	}
 
 	/*

@@ -61,6 +61,7 @@ function Battle(){
 	var trackThrows = false; // Record details of each Charged Move for timing feedback (see js/academy)
 	var throwLog = [];
 	var stepLog = []; // One record per processed step while tracking, for measuring engine timing
+	var throwObserver = null; // Called synchronously for each Charged Move while tracking, see setThrowObserver
 
 	var chargeAmount = 0; // Multiplier used in emulated battles
 	var playerUseShield = false; // Flag for a player to use an available shield in emulated battles
@@ -329,6 +330,20 @@ function Battle(){
 		var cooldownsToSet = [pokemon[0].cooldown, pokemon[1].cooldown]; // Store cooldown values to set later
 		var acceptedThisStep = []; // [actor, type] of each action that passed the post-Charged Move filter, for the step log
 
+		// What the decision logic sees this turn, captured before anyone decides: each side's cooldown (ms) and how many
+		// of its own Fast Moves are still queued. By the time a Charged Move is processed, cooldowns already include this
+		// turn's taps and landed Fast Moves have left the queue, so these can't be recovered later.
+		var decisionState = null;
+
+		if(trackThrows){
+			decisionState = {
+				cooldowns: [pokemon[0].cooldown, pokemon[1].cooldown],
+				queuedFast: [0, 1].map(function(actor){
+					return queuedActions.filter(function(a){ return a.actor == actor && a.type == "fast"; }).length;
+				})
+			};
+		}
+
 		if(turns > lastProcessedTurn){
 			for(var i = 0; i < 2; i++){
 
@@ -400,6 +415,8 @@ function Battle(){
 				lastProcessedTurn: lastProcessedTurn,
 				decided: turns > lastProcessedTurn, // false for the "same turn" re-runs after a Charged Move, which still tick cooldowns
 				chargedLastTurn: !!chargedMoveLastTurn,
+				cooldownsBefore: decisionState.cooldowns,
+				queuedFastBefore: decisionState.queuedFast,
 				accepted: acceptedThisStep,
 				cooldowns: [cooldownsToSet[0] / deltaTime, cooldownsToSet[1] / deltaTime]
 			});
@@ -1058,7 +1075,20 @@ function Battle(){
 			oppFastDamage = opponent.fastMove.damage || 0;
 		}
 
-		throwLog.push({
+		// Plain data describing what the decision logic saw. The live Pokemon are exactly in that state right now apart from
+		// cooldowns and the queue, which come from the step record, so the observer below can judge the throw on the spot.
+		var step = stepLog[stepLog.length - 1];
+		var snapshot = {
+			turn: turns,
+			mode: mode,
+			actor: poke.index,
+			cooldowns: step.cooldownsBefore.slice(),
+			queuedFast: step.queuedFastBefore.slice(),
+			me: { energy: poke.energy, hp: poke.hp, shields: poke.shields },
+			opp: { energy: opponent.energy, hp: opponent.hp, shields: opponent.shields }
+		};
+
+		var entry = {
 			stepIndex: stepLog.length - 1, // the step this throw was processed in
 			turn: turns,
 			time: time,
@@ -1080,8 +1110,33 @@ function Battle(){
 			oppHp: opponent.hp,
 			hp: poke.hp,
 			shielded: opponent.shields > 0,
-			simultaneous: simultaneous
-		});
+			simultaneous: simultaneous,
+			moveIndex: poke.chargedMoves.indexOf(move),
+			snapshot: snapshot,
+			engine: null // the observer's verdict, if one is set
+		};
+
+		// A Charged Move processed in the same step as the other side's can't be judged on the spot: the first one
+		// processed has already changed the state the second was decided on.
+		if(throwObserver && ! simultaneous){
+			try{
+				entry.engine = throwObserver(poke, opponent, move, snapshot, self);
+			} catch(e){
+				// An observer bug must never break a battle
+				entry.engine = null;
+				console.error("Throw observer failed", e);
+			}
+		}
+
+		throwLog.push(entry);
+	}
+
+	/*
+	* Register a function called for each Charged Move while tracking, synchronously and before the move resolves, with
+	* (attacker, defender, move, snapshot, battle). Whatever it returns is stored on the throw log entry as `engine`.
+	*/
+	this.setThrowObserver = function(fn){
+		throwObserver = fn;
 	}
 
 	this.setTrackThrows = function(val){
@@ -1094,30 +1149,6 @@ function Battle(){
 
 	this.getStepLog = function(){
 		return stepLog;
-	}
-
-	/*
-	* Run fn with the engine's decision logging on, and return what the engine logged during it. The log is cut back
-	* afterwards and the debug flag restored, so a caller that had debugging on keeps its own entries untouched.
-	*/
-	this.withDecisionLog = function(fn){
-		var previousDebug = debugMode;
-		var startLength = decisionLog.length;
-		var result;
-
-		debugMode = true;
-
-		try{
-			result = fn();
-		} finally{
-			debugMode = previousDebug;
-		}
-
-		var entries = decisionLog.slice(startLength);
-
-		decisionLog.length = startLength;
-
-		return { result: result, entries: entries };
 	}
 
 	this.getThrowLog = function(){
