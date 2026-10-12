@@ -1,6 +1,6 @@
 /*
 * Measures how much of the battle window and the Coach panel is visible during a live Training Battle at
-* phone and tablet sizes, including a mid-battle rotation. Prints a table; saves screenshots when SHOT_DIR is set.
+* portrait phone and tablet sizes. Prints a table; saves screenshots when SHOT_DIR is set.
 *
 *   SITE_URL=... PLAYWRIGHT_PATH=... CHROME_PATH=... SHOT_DIR=/tmp/shots node tests/academy/phone-check.mjs
 */
@@ -57,22 +57,19 @@ async function startBattle(size, label) {
 }
 
 const rows = [];
-for (const [label, size] of [['phone portrait', { width: 390, height: 844 }], ['phone landscape', { width: 844, height: 390 }], ['tablet portrait', { width: 768, height: 1024 }]]) {
+// The game is played in portrait, so only portrait sizes are checked. Short phones are the tight case.
+for (const [label, size] of [
+	['phone 390x844', { width: 390, height: 844 }],
+	['small phone 375x667', { width: 375, height: 667 }],
+	['small phone 360x640', { width: 360, height: 640 }],
+	['tablet 768x1024', { width: 768, height: 1024 }]
+]) {
 	const page = await startBattle(size, label);
-	const m = await measure(page);
-	rows.push({ label, ...m });
-	if (SHOTS) await page.screenshot({ path: `${SHOTS}/${label.replace(' ', '-')}.png` });
+	rows.push({ label, ...(await measure(page)) });
+	if (SHOTS) await page.screenshot({ path: `${SHOTS}/${label.replace(/ /g, '-')}.png` });
 	await page.close();
 }
 
-// Rotate mid-battle: portrait -> landscape -> portrait
-const page = await startBattle({ width: 390, height: 844 }, 'rotate');
-for (const [label, size] of [['rotated to landscape', { width: 844, height: 390 }], ['rotated back to portrait', { width: 390, height: 844 }]]) {
-	await page.setViewportSize(size);
-	await page.waitForTimeout(1500);
-	rows.push({ label, ...(await measure(page)) });
-	if (SHOTS) await page.screenshot({ path: `${SHOTS}/${label.replace(/ /g, '-')}.png` });
-}
 await browser.close();
 
 for (const r of rows) {

@@ -110,8 +110,9 @@ body:not(.battle-active) .coach-panel {
 }
 
 .coach-panel .coach-turn {
-	font-size: 12px;
-	color: var(--ac-muted);
+	font-size: 13px;
+	font-weight: bold;
+	color: var(--ac-ink);
 	white-space: nowrap;
 }
 

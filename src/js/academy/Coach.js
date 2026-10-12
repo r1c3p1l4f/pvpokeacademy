@@ -264,7 +264,6 @@ var Coach = (function () {
 		}
 
 		panel.attr("data-mode", mode);
-		panel.find(".coach-turn").text(lastTurn ? "Turn " + lastTurn : "");
 
 		var poke = battle.getPokemon();
 
@@ -272,6 +271,19 @@ var Coach = (function () {
 			panel.hide();
 			return;
 		}
+
+		// The header always shows the numbers that matter most, so they stay visible on short phone screens
+		var glance = "";
+
+		if (mode === "learn") {
+			glance = "You " + Math.floor(poke[0].energy) + " \u00B7 Opp " + Math.floor(poke[1].energy);
+		} else if (mode === "count") {
+			glance = "You " + Math.floor(poke[0].energy) + " \u00B7 Opp taps " + taps[1];
+		} else if (lastTurn) {
+			glance = "Turn " + lastTurn;
+		}
+
+		panel.find(".coach-turn").text(glance).attr("title", lastTurn ? "Turn " + lastTurn : "");
 
 		panel.show();
 
