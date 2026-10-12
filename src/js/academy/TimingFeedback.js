@@ -14,6 +14,7 @@
 }(typeof self !== 'undefined' ? self : this, function (TurnMath) {
 
 	var GRADES = {
+		idle: { icon: "\u2714", label: "No move in flight", css: "perfect" },
 		perfect: { icon: "✔", label: "Perfect", css: "perfect" },
 		good: { icon: "✔", label: "Good", css: "good" },
 		minor: { icon: "!", label: "Minor leak", css: "minor" },

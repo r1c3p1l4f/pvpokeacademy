@@ -41,6 +41,40 @@ async function measure(page) {
 	});
 }
 
+// The overlay must be visible during live play and must never intercept a tap
+async function overlayChecks(page) {
+	for (let i = 0; i < 60; i++) {
+		const ready = await page.evaluate(() => $('.battle-window').attr('phase') === 'neutral' && $('.coach-banner').text().length > 0);
+		if (ready) break;
+		await page.waitForTimeout(500);
+	}
+
+	return page.evaluate(() => {
+		const win = document.querySelector('.battle-window').getBoundingClientRect();
+		const visible = (sel) => {
+			const el = document.querySelector(sel);
+			if (!el || getComputedStyle(el).display === 'none') return 0;
+			const r = el.getBoundingClientRect();
+			const w = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0));
+			const h = Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+			return Math.round(100 * (w * h) / (r.width * r.height || 1));
+		};
+		const overlays = [...document.querySelectorAll('.coach-overlay')];
+		const hittable = overlays.filter(el => getComputedStyle(el).pointerEvents !== 'none').length;
+		// Points a player taps: the window centre and the middle of every Charged Move button
+		const points = [['window centre', win.left + win.width / 2, win.top + win.height * 0.45]];
+		document.querySelectorAll('.controls .move-bar').forEach((bar, i) => {
+			const r = bar.getBoundingClientRect();
+			if (r.width) points.push(['button ' + (i + 1), r.left + r.width / 2, r.top + r.height / 2]);
+		});
+		const hits = points.map(([name, x, y]) => {
+			const el = document.elementFromPoint(x, y);
+			return { name, blocked: !!(el && el.closest('.coach-overlay')), target: el ? (el.className || el.tagName).toString().slice(0, 30) : null };
+		});
+		return { banner: visible('.coach-banner'), oppEnergy: visible('.coach-opp-energy'), overlays: overlays.length, hittable, hits };
+	});
+}
+
 async function startBattle(size, label) {
 	const page = await browser.newPage({ viewport: size, hasTouch: size.width < 900, isMobile: size.width < 900 });
 	await page.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, r => r.abort());
@@ -65,14 +99,33 @@ for (const [label, size] of [
 	['tablet 768x1024', { width: 768, height: 1024 }]
 ]) {
 	const page = await startBattle(size, label);
-	rows.push({ label, ...(await measure(page)) });
+	rows.push({ label, ...(await measure(page)), overlay: await overlayChecks(page) });
 	if (SHOTS) await page.screenshot({ path: `${SHOTS}/${label.replace(/ /g, '-')}.png` });
 	await page.close();
 }
 
 await browser.close();
 
+let failures = 0;
+
 for (const r of rows) {
 	const f = (x) => x ? `${x.visiblePct}% (top ${x.top}, ${x.w}x${x.h})` : 'none';
-	console.log(`${r.label.padEnd(26)} ${r.viewport.padEnd(9)} hscroll:${r.hscroll}  window ${f(r.window)}\n${''.padEnd(26)} controls ${f(r.controls)} | panel ${f(r.panel)}\n${''.padEnd(26)} advice ${f(r.advice)} | you ${f(r.self)} | opp ${f(r.opp)}`);
+	const o = r.overlay;
+	const blocked = o.hits.filter(h => h.blocked).map(h => h.name);
+	const problems = [];
+
+	if (r.window.visiblePct < 100) problems.push('window not fully visible');
+	if (r.controls.visiblePct < 100) problems.push('controls not fully visible');
+	if (r.hscroll) problems.push('horizontal scroll');
+	if (o.banner < 100) problems.push('banner not fully visible');
+	if (o.oppEnergy < 100) problems.push('opponent energy bar not fully visible');
+	if (o.hittable > 0) problems.push(o.hittable + ' overlay element(s) can receive taps');
+	if (blocked.length) problems.push('overlay covers: ' + blocked.join(', '));
+	failures += problems.length;
+
+	console.log(`${r.label.padEnd(22)} ${r.viewport.padEnd(8)} window ${f(r.window)} | controls ${f(r.controls)}`);
+	console.log(`${''.padEnd(22)} overlay: banner ${o.banner}%, opp energy ${o.oppEnergy}%, ${o.overlays} elements, taps reach ${o.hits.map(h => h.name + ' -> ' + h.target).join('; ')}`);
+	console.log(`${''.padEnd(22)} ${problems.length ? 'PROBLEMS: ' + problems.join('; ') : 'ok'}`);
 }
+
+process.exit(failures ? 1 : 0);

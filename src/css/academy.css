@@ -1039,3 +1039,227 @@ body:not(.battle-active) .coach-panel {
 		justify-content: flex-start;
 	}
 }
+
+/* ---------- Coach overlay on the battle window ---------- */
+
+/* Every overlay element is click-through so the window's own tap handling is unaffected */
+.coach-overlay {
+	pointer-events: none !important;
+	display: none;
+}
+
+/* Only during live play. The charge minigame, shield, swap and end screens use the same space. */
+.battle-window[phase="neutral"][data-coach="learn"] .coach-banner,
+.battle-window[phase="neutral"][data-coach="count"] .coach-banner,
+.battle-window[phase="neutral"][data-coach="learn"] .coach-opp-energy,
+.battle-window[phase="neutral"][data-coach="count"] .coach-opp-taps,
+.battle-window[phase="neutral"][data-coach="learn"] .coach-btn-count,
+.battle-window[phase="neutral"][data-coach="learn"] .coach-badge {
+	display: block;
+}
+
+.battle-window .coach-banner {
+	position: absolute;
+	top: 3px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 12;
+	max-width: 340px;
+	padding: 0 12px;
+	border-radius: 12px;
+	background: rgba(20, 28, 40, 0.85);
+	color: #fff;
+	font-size: 13px;
+	font-weight: bold;
+	line-height: 22px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	box-shadow: 0 0 0 2px transparent;
+}
+
+.battle-window .coach-banner:empty {
+	display: none !important;
+}
+
+.battle-window .coach-banner[data-state="go"],
+.battle-window .coach-banner[data-state="perfect"],
+.battle-window .coach-banner[data-state="good"] {
+	box-shadow: 0 0 0 2px #43c47a;
+}
+
+.battle-window .coach-banner[data-state="wait"] {
+	box-shadow: 0 0 0 2px #6ea2ff;
+}
+
+.battle-window .coach-banner[data-state="warn"],
+.battle-window .coach-banner[data-state="minor"] {
+	box-shadow: 0 0 0 2px #f0a92b;
+}
+
+.battle-window .coach-banner[data-state="bad"] {
+	box-shadow: 0 0 0 2px #ff6b5e;
+}
+
+/* Opponent energy sits in the gap under their HP bar */
+.battle-window .coach-opp-energy {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 100%;
+	margin-top: 5px;
+	height: 7px;
+	border-radius: 4px;
+	background: rgba(0, 0, 0, 0.5);
+}
+
+.battle-window .coach-opp-energy .fill {
+	height: 100%;
+	border-radius: 4px;
+	background: #aecb28;
+	transition: width 0.2s linear;
+}
+
+.battle-window .coach-opp-energy .fill.full {
+	background: #ff9f1c;
+}
+
+.battle-window .coach-opp-energy .tick {
+	position: absolute;
+	top: -2px;
+	bottom: -2px;
+	width: 2px;
+	margin-left: -1px;
+	background: #fff;
+	opacity: 0.85;
+}
+
+.battle-window .coach-opp-energy .tick.reached {
+	background: #ff9f1c;
+}
+
+.battle-window .coach-opp-energy .value,
+.battle-window .coach-opp-taps {
+	position: absolute;
+	padding: 0 6px;
+	border-radius: 8px;
+	background: rgba(20, 28, 40, 0.85);
+	color: #fff;
+	font-size: 12px;
+	font-weight: bold;
+	line-height: 16px;
+	white-space: nowrap;
+}
+
+.battle-window .coach-opp-energy .value {
+	left: 100%;
+	top: -5px;
+	margin-left: 5px;
+}
+
+.battle-window .coach-opp-taps {
+	left: 0;
+	top: 100%;
+	margin-top: 5px;
+}
+
+.battle-window .coach-opp-energy .value:empty,
+.battle-window .coach-opp-taps:empty {
+	display: none;
+}
+
+/* Charged Move buttons: fast moves to ready, and the throw to make */
+.battle-window .controls .move-bar {
+	position: relative;
+}
+
+.battle-window .move-bar .coach-btn-count,
+.battle-window .move-bar .coach-badge {
+	position: absolute;
+	left: 50%;
+	z-index: 5;
+	transform: translateX(-50%);
+	border-radius: 10px;
+	background: rgba(20, 28, 40, 0.9);
+	color: #fff;
+	font-weight: bold;
+	text-align: center;
+	white-space: nowrap;
+}
+
+/* The button clips its children to a circle, so both sit inside it: badge on top, count underneath */
+.battle-window .move-bar .coach-btn-count {
+	bottom: 4px;
+	min-width: 20px;
+	height: 18px;
+	padding: 0 4px;
+	font-size: 12px;
+	line-height: 18px;
+}
+
+.battle-window .move-bar .coach-badge {
+	top: 3px;
+	min-width: 30px;
+	height: 20px;
+	padding: 0 5px;
+	font-size: 13px;
+	line-height: 20px;
+	background: #1f9d55;
+}
+
+.battle-window .move-bar.coach-rec.wait .coach-badge {
+	background: #2563c9;
+}
+
+.battle-window .move-bar.coach-rec.warn .coach-badge {
+	background: #d98a00;
+}
+
+.battle-window .controls .move-bar.coach-rec.go {
+	box-shadow: 0 0 0 4px #43c47a, 0 5px 10px rgba(0, 0, 0, 0.5);
+}
+
+.battle-window .controls .move-bar.coach-rec.wait {
+	box-shadow: 0 0 0 4px #6ea2ff, 0 5px 10px rgba(0, 0, 0, 0.5);
+}
+
+.battle-window .controls .move-bar.coach-rec.warn {
+	box-shadow: 0 0 0 4px #f0a92b, 0 5px 10px rgba(0, 0, 0, 0.5);
+}
+
+.battle-window .move-bar .coach-btn-count:empty,
+.battle-window .move-bar .coach-badge:empty {
+	display: none !important;
+}
+
+/* The charge minigame clones a button; don't copy the overlay into it */
+.charge-window .coach-overlay {
+	display: none !important;
+}
+
+/* Panel as a collapsible details view */
+.coach-panel .coach-toggle {
+	padding: 2px 9px;
+	font-size: 11px;
+	border: 1px solid var(--ac-line);
+	border-radius: 10px;
+	background: var(--ac-card);
+	color: var(--ac-ink);
+	cursor: pointer;
+}
+
+.coach-panel.collapsed {
+	margin-top: 6px;
+	padding-top: 6px;
+	padding-bottom: 6px;
+}
+
+.coach-panel.collapsed .coach-header {
+	margin-bottom: 0;
+}
+
+.coach-panel.collapsed .coach-advice,
+.coach-panel.collapsed .coach-side,
+.coach-panel.collapsed .coach-log {
+	display: none !important;
+}

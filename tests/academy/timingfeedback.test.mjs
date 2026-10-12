@@ -78,3 +78,14 @@ test('an idle opponent is a clean throw with its own wording', () => {
 	assert.match(TF.describe(t), /wasn't in the middle of a Fast Move/);
 	assert.equal(TF.summarize([t]).you.clean, 1);
 });
+
+test('every grade the grader can return has display info', () => {
+	const grades = new Set();
+	for (let rho = 0; rho <= 6; rho++) {
+		for (let b = 1; b <= 5; b++) grades.add(TF.grade(entry({ oppCooldown: rho, oppFastTurns: b })).grade);
+	}
+	assert.ok(grades.has('idle') && grades.has('perfect') && grades.has('sneak'));
+	for (const g of grades) {
+		assert.ok(TF.GRADES[g] && TF.GRADES[g].css && TF.GRADES[g].label && TF.GRADES[g].icon, 'missing GRADES entry for ' + g);
+	}
+});

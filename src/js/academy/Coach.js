@@ -37,6 +37,8 @@ var Coach = (function () {
 	var fullEnergyTurns = 0;
 	var lastTurn = 0;
 	var latestAdvice = null;
+	var toast = null; // {text, css, until} shown briefly in the banner after you throw
+	var collapsed = loadCollapsed();
 
 	// ---------- Settings ----------
 
@@ -78,6 +80,22 @@ var Coach = (function () {
 			panel.attr("data-mode", mode);
 			panel.find(".coach-mode-switch").val(mode);
 			render();
+		}
+	}
+
+	function loadCollapsed() {
+		try {
+			return window.localStorage.getItem("academy.coachCollapsed") !== "0";
+		} catch (e) {
+			return true;
+		}
+	}
+
+	function saveCollapsed(value) {
+		try {
+			window.localStorage.setItem("academy.coachCollapsed", value ? "1" : "0");
+		} catch (e) {
+			// Ignore
 		}
 	}
 
@@ -136,7 +154,14 @@ var Coach = (function () {
 	}
 
 	/*
-	* What should the player do next turn? Returns {css, text} or null.
+	* What should the player do next turn? One advice state feeds the panel text, the banner, and the button ring and
+	* badge, so they can never disagree.
+	*   css    - go / wait / warn
+	*   text   - full sentence for the panel (HTML)
+	*   short  - a few words for the banner on the battle window
+	*   badge  - "GO", or the number of Fast Moves still to tap, shown on the button to throw
+	*   button - index of that Charged Move
+	* Returns null when no Charged Move is affordable.
 	*/
 	function computeAdvice(me, opp) {
 		var ready = me.chargedMoves.filter(function (m) { return me.energy >= m.energy; });
@@ -147,12 +172,20 @@ var Coach = (function () {
 
 		var move = cheapestMove(ready);
 		var bestReady = ready.reduce(function (best, m) { return (!best || m.energy > best.energy) ? m : best; }, null);
+		var chosen = ready.length > 1 ? bestReady : move;
+		var button = me.chargedMoves.indexOf(chosen);
 
 		// A Charged Move that knocks out an unshielded opponent should just be thrown
 		if (opp.shields === 0) {
 			for (var i = 0; i < ready.length; i++) {
 				if (safeDamage(me, opp, ready[i]) >= opp.hp) {
-					return { css: "go", text: "Throw <b>" + esc(ready[i].name) + "</b> now. It knocks " + esc(opp.speciesName) + " out." };
+					return {
+						css: "go",
+						text: "Throw <b>" + esc(ready[i].name) + "</b> now. It knocks " + esc(opp.speciesName) + " out.",
+						short: "Throw " + ready[i].name + ": KO",
+						badge: "GO",
+						button: me.chargedMoves.indexOf(ready[i])
+					};
 				}
 			}
 		}
@@ -170,20 +203,31 @@ var Coach = (function () {
 		});
 
 		var when = adv.now.turn > 1 ? " (in " + pluralize(adv.now.turn, "turn") + ")" : "";
-		var name = esc(ready.length > 1 ? bestReady.name : move.name);
+		var name = esc(chosen.name);
 
 		if (adv.action === "wait") {
+			var taps = adv.waitFor.j;
+
 			return {
 				css: "wait",
-				text: "Tap " + esc(me.fastMove.name) + " again. " + esc(adv.reason) + ""
+				text: "Tap <b>" + esc(me.fastMove.name) + "</b> " + pluralize(taps, "more time") + ", then throw. " + esc(adv.reason),
+				short: "Tap " + taps + " more, then throw",
+				badge: String(taps),
+				button: button
 			};
 		}
 
 		if (adv.now.good) {
-			return { css: "go", text: "Throw <b>" + name + "</b>" + when + ". " + esc(adv.reason) };
+			return { css: "go", text: "Throw <b>" + name + "</b>" + when + ". " + esc(adv.reason), short: "Throw " + chosen.name, badge: "GO", button: button };
 		}
 
-		return { css: "warn", text: "You can throw <b>" + name + "</b>" + when + ", but " + esc(adv.reason.charAt(0).toLowerCase() + adv.reason.slice(1)) };
+		return {
+			css: "warn",
+			text: "You can throw <b>" + name + "</b>" + when + ", but " + esc(adv.reason.charAt(0).toLowerCase() + adv.reason.slice(1)),
+			short: "Throw " + chosen.name + " (leaky)",
+			badge: "GO",
+			button: button
+		};
 	}
 
 	// ---------- Throw grading ----------
@@ -197,6 +241,7 @@ var Coach = (function () {
 					'<span class="coach-title">Coach</span>' +
 					'<select class="coach-mode-switch" aria-label="Coach mode"></select>' +
 					'<span class="coach-turn"></span>' +
+					'<button type="button" class="coach-toggle" aria-expanded="false">Details</button>' +
 				'</div>' +
 				'<div class="coach-advice"></div>' +
 				'<div class="coach-side self"></div>' +
@@ -208,6 +253,12 @@ var Coach = (function () {
 		populateModeSelect($panel.find(".coach-mode-switch"));
 		$panel.find(".coach-mode-switch").on("change", function () {
 			setMode($(this).val());
+		});
+
+		$panel.find(".coach-toggle").on("click", function () {
+			collapsed = !collapsed;
+			saveCollapsed(collapsed);
+			applyCollapsed();
 		});
 
 		// Don't let panel clicks reach the battle window's tap handler
@@ -258,6 +309,117 @@ var Coach = (function () {
 		return header + energyBar(poke, who) + counters(poke);
 	}
 
+	function applyCollapsed() {
+		if (!panel) {
+			return;
+		}
+
+		// Review mode has no overlay, so the panel is its only display and stays open
+		var isCollapsed = collapsed && mode !== "review";
+
+		panel.toggleClass("collapsed", isCollapsed);
+		panel.find(".coach-toggle").attr("aria-expanded", isCollapsed ? "false" : "true").text(isCollapsed ? "Details" : "Hide").toggle(mode !== "review");
+	}
+
+	// ---------- On-window overlay ----------
+
+	/*
+	* Information that matters while tapping sits on the battle window itself. Every element is click-through
+	* (pointer-events: none in CSS), so the window's own tap handling is untouched. The recommended Charged Move gets
+	* a class on the game's own button instead of an element laid over it.
+	*/
+	function buildOverlay() {
+		$(".coach-overlay").remove();
+
+		$(".battle-window").append('<div class="coach-overlay coach-banner" aria-live="off"></div>');
+
+		var $oppHp = $(".battle-window .pokemon-container.opponent .hp");
+
+		$oppHp.append('<div class="coach-overlay coach-opp-energy"><div class="fill"></div><span class="value"></span></div>');
+		$oppHp.append('<div class="coach-overlay coach-opp-taps"></div>');
+
+		$(".battle-window .controls .move-bar").each(function () {
+			$(this).append('<span class="coach-overlay coach-btn-count"></span>');
+			$(this).append('<span class="coach-overlay coach-badge"></span>');
+		});
+	}
+
+	function renderOverlay(me, opp) {
+		var $win = $(".battle-window");
+
+		$win.attr("data-coach", mode);
+
+		if (mode === "off" || mode === "review") {
+			return;
+		}
+
+		// Banner: a throw result for a few seconds, otherwise the advice or the next count
+		var banner = null;
+
+		if (toast && Date.now() < toast.until) {
+			banner = { css: toast.css, text: toast.text };
+		} else if (mode === "learn") {
+			if (latestAdvice) {
+				banner = { css: latestAdvice.css, text: latestAdvice.short };
+			} else {
+				var next = me.chargedMoves.reduce(function (best, m) {
+					var n = TurnMath.fastMovesToReach(me.energy, m.energy, me.fastMove.energyGain);
+
+					return (!best || n < best.n) ? { n: n, name: m.name } : best;
+				}, null);
+
+				banner = next ? { css: "idle", text: next.name + " in " + pluralize(next.n, "tap") } : null;
+			}
+		}
+
+		$win.find(".coach-banner").attr("data-state", banner ? banner.css : "").text(banner ? banner.text : "");
+
+		// Opponent: exact energy in Learn, only a tap count in Count
+		var oppCosts = opp.chargedMoves.map(function (m) { return m.energy; });
+		var $energy = $win.find(".coach-opp-energy");
+
+		if (mode === "learn") {
+			var $fill = $energy.find(".fill").css("width", Math.min(opp.energy, 100) + "%");
+
+			$energy.find(".tick").remove();
+			oppCosts.forEach(function (cost) {
+				var $tick = $('<span class="tick"></span>').css("left", Math.min(cost, 100) + "%");
+
+				$tick.toggleClass("reached", opp.energy >= cost);
+				$energy.append($tick);
+			});
+			$energy.find(".value").text(Math.floor(opp.energy));
+			$fill.toggleClass("full", oppCosts.some(function (cost) { return opp.energy >= cost; }));
+			$win.find(".coach-opp-taps").text("");
+		} else {
+			$energy.find(".value").text("");
+			$win.find(".coach-opp-taps").text("taps " + taps[1]);
+		}
+
+		// Buttons: Fast Moves to ready (Learn only) and the recommended throw
+		var $bars = $win.find(".controls .move-bar");
+
+		$bars.removeClass("coach-rec go wait warn");
+		$bars.find(".coach-btn-count, .coach-badge").text("");
+
+		if (mode !== "learn") {
+			return;
+		}
+
+		me.chargedMoves.forEach(function (m, i) {
+			var n = TurnMath.fastMovesToReach(me.energy, m.energy, me.fastMove.energyGain);
+
+			$bars.eq(i).find(".coach-btn-count").text(n === 0 ? "\u2713" : n);
+		});
+
+		if (latestAdvice && latestAdvice.button > -1) {
+			var $rec = $bars.eq(latestAdvice.button);
+
+			$rec.addClass("coach-rec " + latestAdvice.css);
+			$rec.find(".coach-badge").text(latestAdvice.badge);
+		}
+	}
+
 	function render() {
 		if (!panel || !active) {
 			return;
@@ -268,6 +430,7 @@ var Coach = (function () {
 		var poke = battle.getPokemon();
 
 		if (!poke[0] || !poke[1] || mode === "off") {
+			$(".battle-window").attr("data-coach", "off");
 			panel.hide();
 			return;
 		}
@@ -284,6 +447,8 @@ var Coach = (function () {
 		}
 
 		panel.find(".coach-turn").text(glance).attr("title", lastTurn ? "Turn " + lastTurn : "");
+		applyCollapsed();
+		renderOverlay(poke[0], poke[1]);
 
 		panel.show();
 
@@ -337,6 +502,9 @@ var Coach = (function () {
 
 		battle.setTrackThrows(mode !== "off");
 
+		toast = null;
+		buildOverlay();
+
 		if (!panel) {
 			panel = buildPanel();
 			panel.insertAfter($(".battle-window"));
@@ -380,6 +548,10 @@ var Coach = (function () {
 
 			throws.push(graded);
 			taps[graded.actor] = 0;
+
+			if (graded.actor === 0) {
+				toast = throwToast(graded);
+			}
 		}
 
 		var me = response.pokemon[0];
@@ -394,8 +566,23 @@ var Coach = (function () {
 		render();
 	}
 
+	// A few words about the throw you just made, for the banner
+	function throwToast(t) {
+		var g = TimingFeedback.GRADES[t.grade];
+		var text = g.icon + " " + g.label;
+
+		if (t.simultaneous) {
+			text = "Same turn as theirs";
+		} else if (t.freeTurns > 0) {
+			text = g.icon + " " + g.label + ": " + pluralize(t.freeTurns, "free turn");
+		}
+
+		return { text: text, css: t.simultaneous ? "good" : g.css, until: Date.now() + 3500 };
+	}
+
 	function stop() {
 		active = false;
+		$(".battle-window").attr("data-coach", "off");
 
 		if (panel) {
 			panel.hide();
