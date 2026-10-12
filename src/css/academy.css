@@ -1263,3 +1263,10 @@ body:not(.battle-active) .coach-panel {
 .coach-panel.collapsed .coach-log {
 	display: none !important;
 }
+
+.coach-plan {
+	margin-top: 6px;
+	font-size: 0.85em;
+	line-height: 1.35;
+	opacity: 0.9;
+}

@@ -47,6 +47,7 @@ await page.evaluate(() => {
 			phase: r.phase,
 			advice: $('.coach-advice').attr('class') || '',
 			adviceText: $('.coach-advice').text(),
+			plan: $('.coach-plan').text(),
 			taps: (r.animations || []).filter(a => a.type === 'fast').map(a => a.actor),
 			cd: [r.pokemon[0].cooldown, r.pokemon[1].cooldown]
 		});
@@ -148,6 +149,8 @@ for (const t of result.throws) {
 	}
 }
 
+const plans = [...new Set(rec.map(r => r.plan).filter(Boolean))];
+console.log(`opponent plan lines seen: ${plans.length}`); plans.forEach(p => console.log('  ' + p));
 console.log(`throws ${result.throws.length}; ordinary dead-turn checks ${deadTurnChecked}, mismatches ${deadTurnBad}; sneak throws (total/decided steps): ${JSON.stringify(sneakSeen)}; skipped ${skipped}; advice checks ${adviceChecked} (${engineChecked} with an engine verdict), mismatches ${adviceBad}`);
 lines.filter(l => l.startsWith('ADVICE')).forEach(l => console.log(l));
 if (lines.some(l => l.startsWith('DEAD-TURN'))) console.log('(dead-turn step counts differed from 2 in ' + deadTurnBad + ' ordinary throw(s); informational, see the comment at the top of this file)');

@@ -26,6 +26,7 @@ var Coach = (function () {
 	var GRADES = TimingFeedback.GRADES;
 
 	var battle = null;
+	var battlePlayers = null; // The Train mode players, for reading the opponent AI's plan
 	var mode = DEFAULT_MODE;
 	var panel = null;
 	var active = false;
@@ -169,6 +170,33 @@ var Coach = (function () {
 		why.notes.forEach(function (n) { parts.push(esc(n.text)); });
 
 		return parts.join(" ");
+	}
+
+	// What the opponent's AI is working toward, from the strategy it picked (TrainingAI). Worded as what it chose, not as a prediction.
+	function opponentPlan() {
+		var ai = battlePlayers && battlePlayers[1] && battlePlayers[1].getAI && battlePlayers[1].getAI();
+		var plan = ai && ai.getPlan ? ai.getPlan() : null;
+
+		if (!plan) {
+			return "";
+		}
+
+		if (plan.overfarming) {
+			return "Overfarming: they tapped instead of throwing a Charged Move they could use, to bank energy. The AI rolls this when the matchup is decent and they have Pok\u00E9mon left, and more often when you're low on energy.";
+		}
+
+		switch (plan.strategy) {
+			case "SWITCH_BASIC":
+				return "They chose to swap out: the AI rates this matchup poorly for them.";
+			case "SWITCH_FARM":
+				return "They chose to build energy before swapping out, because your Fast Move doesn't hurt much.";
+			case "FARM":
+				return "They chose to farm: tapping to build energy before throwing.";
+			case "BAIT_SHIELDS":
+				return "They chose to bait: leading with the cheaper Charged Move to draw a shield.";
+			default:
+				return "";
+		}
 	}
 
 	function computeAdvice(me, opp) {
@@ -483,6 +511,10 @@ var Coach = (function () {
 			panel.find(".coach-side.self").html(sideHtml(poke[0], "You", true));
 			panel.find(".coach-side.opp").html(sideHtml(poke[1], "Opp", mode === "learn"));
 
+			var plan = mode === "learn" ? opponentPlan() : "";
+
+			panel.find(".coach-side.opp").append(plan ? $('<div class="coach-plan"></div>').text(plan) : "");
+
 			var $advice = panel.find(".coach-advice");
 
 			if (mode === "learn" && latestAdvice) {
@@ -511,6 +543,7 @@ var Coach = (function () {
 
 	function start(b, players) {
 		battle = b;
+		battlePlayers = players || null;
 
 		// The saved choice is the single source of truth: the setup page and the in-battle switch both write to it
 		mode = loadMode();

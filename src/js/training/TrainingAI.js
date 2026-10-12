@@ -23,6 +23,7 @@ function TrainingAI(l, p, b){
 
 	var currentStrategy; // The current employed strategy to determine behavior
 	var previousStrategy; // Store the previous strategy
+	var overfarming = false; // True when the latest decision was the overfarm roll (tap instead of deciding normally)
 	var scenarios;
 
 	var turnLastEvaluated = 0;
@@ -1027,8 +1028,15 @@ function TrainingAI(l, p, b){
 		}
 	}
 
+	// The strategy this AI is currently following, and whether its last decision was an overfarm tap (read-only, for coaching displays)
+
+	this.getPlan = function(){
+		return { strategy: currentStrategy, overfarming: overfarming };
+	}
+
 	this.decideAction = function(turn, poke, opponent){
 		var action = null;
+		overfarming = false;
 		var opponentPlayer = battle.getPlayers()[opponent.index];
 
 		poke.setBattle(battle);
@@ -1114,6 +1122,7 @@ function TrainingAI(l, p, b){
 			// Perform overfarm
 			if(Math.floor((Math.random() * overfarmChance)) > 0){
 				action = new TimelineAction("fast", poke.index, turn, 0, {priority: poke.priority});
+				overfarming = true;
 			}
 		}
 

@@ -65,6 +65,8 @@ Every Charged Move is judged the same way at the moment it is thrown. `Battle` t
 
 `EngineReasons` turns the engine's decision lines into wording: baiting a shield, building to a bigger move, a farm-down plan, surviving, timing, form change and so on. It only says what the engine logged. For example, the engine's overfarm is a random chance when the matchup is decent and the opponent has Pokemon left; nothing in it ties that to a one-turn switch, so none is claimed. `enginereasons.test.mjs` reads every `logDecision` call in `ActionLogic.js` and fails if one stops matching a rule, so an upstream rewording shows up at merge time instead of as silently missing explanations. Your own bait holds come from your team's Bait Shields setting.
 
+In Learn mode the panel also shows the opponent AI's current plan, read from `TrainingAI.getPlan()`: swapping out of a bad matchup, building energy before a swap, farming, baiting a shield, or an overfarm tap. It is worded as what the AI chose, never as a prediction of what it will do next.
+
 How it is checked:
 
 - `engine-replay-check.mjs` (blocking): every Charged Move the AI throws in 487 simulated battles (2107 throws) replays through `EngineAdvisor.review` as the same throw. A deliberately wrong stand-in scores about 54%.
