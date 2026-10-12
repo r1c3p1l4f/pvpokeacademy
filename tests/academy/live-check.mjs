@@ -1,7 +1,7 @@
 /*
 * Checks the Coach against a real-time Training Battle (emulate mode), which engine-check.mjs doesn't cover.
 *
-* 1. After each Charged Move, the other side's next tap must come on turn T+2 (the dead-turn rule).
+* 1. After each of your Charged Moves, the opponent's next tap must come on turn T+2 (the dead-turn rule).
 * 2. The prompt that was on screen the turn before each of your throws must agree with how the throw was graded:
 *    "throw now" => rho <= 2, "tap again" => rho >= 3.
 *
@@ -69,8 +69,9 @@ const lines = [];
 
 for (const t of result.throws) {
 	if (t.simultaneous) continue;
-	const other = 1 - t.actor;
-	const next = tapsBy[other].find(x => x > t.turn);
+	// Only your throws are checked: the opponent AI taps deterministically, while your own taps come from
+	// autotap and real-time input, which jitter by a turn or two and say nothing about the engine.
+	const next = t.actor === 0 ? tapsBy[1].find(x => x > t.turn) : undefined;
 	if (next !== undefined) {
 		deadTurnChecked++;
 		const delta = next - t.turn;
