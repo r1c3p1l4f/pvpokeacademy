@@ -93,6 +93,13 @@ The browser tests need the site running (for example `php -S` with `/pvpoke/src/
 ```
 SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/engine-check.mjs
 SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/ui-check.mjs
+SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/engine-replay-check.mjs
+SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/review-lookahead-check.mjs
+SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/advice-check.mjs
+SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/live-check.mjs
+SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/audit-check.mjs
+SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/mega-check.mjs
+SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/phone-check.mjs
 ```
 
 ## Contributing

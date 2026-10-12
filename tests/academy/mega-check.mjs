@@ -37,8 +37,12 @@ async function importTeam(index, csv) {
 	await page.waitForTimeout(500);
 }
 
-await importTeam(0, 'malamar_mega,PSYWAVE,FOUL_PLAY,SUPER_POWER,PSYBEAM_PLUS\nsableye_mega,SHADOW_CLAW,FOUL_PLAY,DAZZLING_GLEAM\nmedicham_mega,PSYCHO_CUT,DYNAMIC_PUNCH,ICE_PUNCH');
-await importTeam(1, 'azumarill\nregisteel\nskarmory');
+// SIDE=opp puts the Megas on the AI's side instead (the preset pools have no Megas, so importing is the only way the AI fields one)
+const MEGAS = 'malamar_mega,PSYWAVE,FOUL_PLAY,SUPER_POWER,PSYBEAM_PLUS\nsableye_mega,SHADOW_CLAW,FOUL_PLAY,DAZZLING_GLEAM\nmedicham_mega,PSYCHO_CUT,DYNAMIC_PUNCH,ICE_PUNCH';
+const PLAIN = 'azumarill\nregisteel\nskarmory';
+const oppSide = process.env.SIDE === 'opp';
+await importTeam(0, oppSide ? PLAIN : MEGAS);
+await importTeam(1, oppSide ? MEGAS : PLAIN);
 
 const listed = await page.evaluate(() => $('.poke.multi').first().find('.rankings-container .rank .name').slice(0, 3).map((i, e) => $(e).text()).get());
 console.log('player team as listed: ' + JSON.stringify(listed));
@@ -61,7 +65,7 @@ await page.hover('.auto-tap');
 await page.click('.auto-tap');
 
 const t0 = Date.now();
-const seen = { thirdButtonShown: false, thirdBadge: false, thirdNamedInPrompt: false, promptSamples: [] };
+const seen = { oppEnergyShown: false, oppNames: [], thirdButtonShown: false, thirdBadge: false, thirdNamedInPrompt: false, promptSamples: [] };
 
 while (Date.now() - t0 < MAX_MS) {
 	await page.waitForTimeout(400);
@@ -75,11 +79,14 @@ while (Date.now() - t0 < MAX_MS) {
 			thirdVisible: !!(third.length && third.css('display') !== 'none'),
 			thirdName: $('.controls .move-labels .label').eq(2).text().trim(),
 			thirdBadge: third.find('.coach-badge, .coach-btn-count').length > 0,
+			oppEnergy: $('.coach-opp-energy').length > 0 && $('.coach-opp-energy').text().trim() !== '',
+			oppName: $('.battle-window .opponent .name, .coach-side.opp .side-title').first().text().trim(),
 			advice: $('.coach-advice').text(),
 			banner: $('.coach-banner').text()
 		};
 	});
 
+	if (snap.oppEnergy) { seen.oppEnergyShown = true; if (snap.oppName && !seen.oppNames.includes(snap.oppName)) seen.oppNames.push(snap.oppName); }
 	if (snap.thirdVisible) seen.thirdButtonShown = true;
 	if (snap.thirdVisible && snap.thirdBadge) seen.thirdBadge = true;
 	if (snap.thirdName && (snap.advice + snap.banner).includes(snap.thirdName)) seen.thirdNamedInPrompt = true;
@@ -93,9 +100,13 @@ while (Date.now() - t0 < MAX_MS) {
 
 await browser.close();
 console.log(JSON.stringify(seen, null, 1));
-assert.ok(listed.join(' ').toLowerCase().includes('malamar'), 'Mega Malamar was not accepted into the player team');
-assert.equal(info.bars, 3, 'expected three Charged Move buttons for the lead');
-assert.ok(seen.thirdButtonShown, 'third Charged Move button never showed');
-assert.ok(seen.thirdBadge, 'Coach put no count/badge on the third button');
+if (!oppSide) {
+	assert.ok(listed.join(' ').toLowerCase().includes('malamar'), 'Mega Malamar was not accepted into the player team');
+	assert.equal(info.bars, 3, 'expected three Charged Move buttons for the lead');
+	assert.ok(seen.thirdButtonShown, 'third Charged Move button never showed');
+	assert.ok(seen.thirdBadge, 'Coach put no count/badge on the third button');
+} else {
+	assert.ok(seen.oppEnergyShown, 'the Coach never showed the Mega opponent\'s energy');
+}
 assert.equal(errors.length, 0, errors.join(' | '));
 console.log('Mega checks passed');

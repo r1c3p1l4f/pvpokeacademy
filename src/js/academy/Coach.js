@@ -173,7 +173,7 @@ var Coach = (function () {
 	}
 
 	// What the opponent's AI is working toward, from the strategy it picked (TrainingAI). Worded as what it chose, not as a prediction.
-	function opponentPlan() {
+	function opponentPlan(playerShields) {
 		var ai = battlePlayers && battlePlayers[1] && battlePlayers[1].getAI && battlePlayers[1].getAI();
 		var plan = ai && ai.getPlan ? ai.getPlan() : null;
 
@@ -193,6 +193,11 @@ var Coach = (function () {
 			case "FARM":
 				return "They chose to farm: tapping to build energy before throwing.";
 			case "BAIT_SHIELDS":
+				// The engine's bait logic only applies while you still have a shield to draw
+				if (playerShields === 0) {
+					return "";
+				}
+
 				return "They chose to bait: leading with the cheaper Charged Move to draw a shield.";
 			default:
 				return "";
@@ -511,7 +516,7 @@ var Coach = (function () {
 			panel.find(".coach-side.self").html(sideHtml(poke[0], "You", true));
 			panel.find(".coach-side.opp").html(sideHtml(poke[1], "Opp", mode === "learn"));
 
-			var plan = mode === "learn" ? opponentPlan() : "";
+			var plan = mode === "learn" ? opponentPlan(poke[0].shields) : "";
 
 			panel.find(".coach-side.opp").append(plan ? $('<div class="coach-plan"></div>').text(plan) : "");
 
