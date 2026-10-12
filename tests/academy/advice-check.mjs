@@ -55,7 +55,7 @@ await page.evaluate(() => {
 			window.__rows.push({
 				turn: r.turn, who: me.speciesName + '|' + opp.speciesName, throws: Coach.getThrows().filter(t => t.actor === 1).length,
 				energy: me.energy, ready: ready.length > 0,
-				engine: adv ? { css: adv.css, badge: adv.badge, taps: adv.taps } : null, old
+				engine: adv ? { css: adv.css, badge: adv.badge, taps: adv.taps, kind: adv.kind, text: adv.text, short: adv.short } : null, old
 			});
 		}
 
@@ -83,6 +83,7 @@ await browser.close();
 // Only states where a Charged Move was affordable are interesting
 const live = rows.filter(r => r.ready);
 let both = 0, agree = 0, engineGoOldWait = 0, engineHoldOldThrow = 0;
+const holdKinds = {};
 
 for (const r of live) {
 	if (!r.engine || !r.old) continue;
@@ -91,7 +92,7 @@ for (const r of live) {
 	const oldGo = r.old === 'throw';
 	if (engineGo === oldGo) agree++;
 	else if (engineGo) engineGoOldWait++;
-	else engineHoldOldThrow++;
+	else { engineHoldOldThrow++; holdKinds[r.engine.kind] = (holdKinds[r.engine.kind] || 0) + 1; }
 }
 
 // Badge hit rate: when the badge said N, N boundaries later the engine should say GO (same matchup, no opponent throw between)
@@ -108,10 +109,15 @@ for (let i = 0; i < live.length; i++) {
 	else misses.push(`T${r.turn}: badge ${r.engine.badge} -> T${later.turn} said ${later.engine ? later.engine.badge : 'none'}`);
 }
 
+console.log('why the engine held where the old model said throw: ' + JSON.stringify(holdKinds));
+const badText = rows.filter(r => r.engine && /\[object|undefined|NaN/.test(r.engine.text + ' ' + r.engine.short));
+const sentences = new Set(rows.filter(r => r.engine).map(r => r.engine.short));
+console.log('prompt wording: ' + sentences.size + ' distinct banner texts, ' + badText.length + ' malformed');
+badText.slice(0, 3).forEach(r => console.log('  malformed: ' + r.engine.text));
 const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : 'n/a';
 console.log(`boundaries recorded: ${rows.length}, with a Charged Move affordable: ${live.length}`);
 console.log(`engine vs old TurnMath model on "throw now" vs "hold": ${agree}/${both} agree (${pct(agree, both)}); engine says GO but old says wait: ${engineGoOldWait}; engine holds but old says throw: ${engineHoldOldThrow}`);
 console.log(`tap countdown hit rate: ${badgeHit}/${badgeChecked} (${pct(badgeHit, badgeChecked)})`);
 misses.slice(0, 6).forEach(m => console.log('  miss ' + m));
 console.log(errors.length ? 'ERRORS: ' + errors.join(' | ') : 'no page errors');
-process.exit(errors.length ? 1 : 0);
+process.exit(errors.length || badText.length ? 1 : 0);

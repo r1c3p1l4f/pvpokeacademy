@@ -206,15 +206,38 @@ var Coach = (function () {
 		}
 	}
 
-	// A few words for the engine's reason, only where its wording is recognizable. Otherwise stay neutral.
-	function describeHold(reasons) {
-		var text = reasons.join(" ");
+	/*
+	* Why the engine is holding a throw, from its own decision log. The wording is matched loosely and anything
+	* unrecognized stays neutral, so a change in upstream's phrasing degrades to "Hold", never to a wrong reason.
+	*   kind   - timing / saving / farm / bait / debuff / other
+	*   phrase - for the panel sentence ("The simulator is ...")
+	*   short  - for the banner
+	*/
+	function classifyHold(reasons) {
+		var text = reasons.join(" | ");
+		var saving = /uses a fast move because it has no energy for ([^|]+)/.exec(text);
 
 		if (/optimizing move timing/.test(text)) {
-			return "waiting for better timing";
+			return { kind: "timing", phrase: "waiting for better timing", short: "better timing" };
 		}
 
-		return "";
+		if (saving) {
+			return { kind: "saving", phrase: "saving energy for " + saving[1].trim(), short: "saving for " + saving[1].trim() };
+		}
+
+		if (/wants to farm down/.test(text)) {
+			return { kind: "farm", phrase: "farming energy before it throws", short: "farming energy" };
+		}
+
+		if (/wants to bait/.test(text)) {
+			return { kind: "bait", phrase: "baiting a shield first", short: "baiting a shield" };
+		}
+
+		if (/self debuffing|minimize time debuffed/.test(text)) {
+			return { kind: "debuff", phrase: "holding a self-debuffing move", short: "debuff plan" };
+		}
+
+		return { kind: "other", phrase: "", short: "keep tapping" };
 	}
 
 	/*
@@ -246,6 +269,7 @@ var Coach = (function () {
 					badge: "GO",
 					button: now.action,
 					source: "engine",
+					kind: "go",
 					taps: 0
 				};
 			}
@@ -255,7 +279,7 @@ var Coach = (function () {
 			}
 
 			// The engine is holding the throw. Look ahead (at most 2 of your own Fast Moves) for when it would throw.
-			var why = describeHold(now.reasons);
+			var why = classifyHold(now.reasons);
 
 			for (var taps = 1; taps <= 2; taps++) {
 				var future = projectState(me, opp, taps);
@@ -269,11 +293,12 @@ var Coach = (function () {
 				if (later.action > -1) {
 					return {
 						css: "wait",
-						text: "Tap <b>" + esc(me.fastMove.name) + "</b> " + pluralize(taps, "more time") + ", then throw <b>" + esc(me.chargedMoves[later.action].name) + "</b>." + (why ? " The simulator is " + why + "." : ""),
+						text: "Tap <b>" + esc(me.fastMove.name) + "</b> " + pluralize(taps, "more time") + ", then throw <b>" + esc(me.chargedMoves[later.action].name) + "</b>." + (why.phrase ? " The simulator is " + why.phrase + "." : ""),
 						short: "Tap " + taps + " more, then throw",
 						badge: String(taps),
 						button: later.action,
 						source: "engine",
+						kind: why.kind,
 						taps: taps
 					};
 				}
@@ -281,11 +306,12 @@ var Coach = (function () {
 
 			return {
 				css: "wait",
-				text: "Hold. Keep tapping" + (why ? ": the simulator is " + why : "") + ".",
-				short: "Hold: keep tapping",
+				text: "Hold. Keep tapping" + (why.phrase ? ": the simulator is " + why.phrase : "") + ".",
+				short: "Hold: " + why.short,
 				badge: "HOLD",
 				button: -1,
 				source: "engine",
+				kind: why.kind,
 				taps: null
 			};
 		} catch (e) {
