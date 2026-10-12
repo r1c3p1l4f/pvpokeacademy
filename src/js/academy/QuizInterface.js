@@ -116,6 +116,8 @@ var InterfaceMaster = (function () {
 					settings.mode = hash;
 				}
 
+				setupInstall();
+
 				buildFormatSelect(function () {
 					applySettingsToControls();
 
@@ -385,35 +387,113 @@ var InterfaceMaster = (function () {
 
 			// ---------- Data ----------
 
+			// ---------- Install (only rendered when the PWA is on) ----------
+
+			function setupInstall() {
+				var $box = $(".academy-install");
+
+				if (!$box.length) {
+					return;
+				}
+
+				var standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+
+				if (standalone) {
+					return;
+				}
+
+				var deferred = null;
+
+				window.addEventListener("beforeinstallprompt", function (e) {
+					e.preventDefault();
+					deferred = e;
+					$box.removeClass("hide");
+				});
+
+				window.addEventListener("appinstalled", function () {
+					$box.addClass("hide");
+				});
+
+				$box.find(".install-btn").on("click", function () {
+					if (deferred) {
+						deferred.prompt();
+						deferred = null;
+						$box.addClass("hide");
+					}
+				});
+
+				// Safari on iOS never fires beforeinstallprompt, so say how to do it by hand
+				if (/iphone|ipad|ipod/i.test(window.navigator.userAgent)) {
+					$box.removeClass("hide").find(".install-btn").addClass("hide");
+					$box.find(".install-ios").removeClass("hide");
+				}
+			}
+
+			var loadedFormat = null; // The last format that loaded, so a failed load can go back to it
+
+			/*
+			* Load the ranking for the selected format. The file is fetched here (rather than inside GameMaster, which has
+			* no failure path) and handed to GameMaster's cache, so a missing file, such as a format never opened while
+			* offline, recovers instead of leaving the page loading forever.
+			*/
 			function loadLeague(callback) {
 				var token = ++loadToken;
+				var format = parseFormat(settings.format);
+				var cacheKey = format.cup + "overall" + format.cp; // The key GameMaster.loadRankingData caches under
 
-				gm.loadRankingData({
-					displayRankingData: function (data) {
-						if (token !== loadToken) {
-							return;
-						}
-
-						var format = parseFormat(settings.format);
-
-						pool = QuizEngine.buildPool(gm.data, data, 70, { exclude: formatInfo[settings.format] && formatInfo[settings.format].exclude });
-						progress.setScope(settings.format);
-
-						try {
-							SwapScenarios.init({ pool: pool, cp: format.cp, cup: format.cup });
-
-							if (!swapReady) {
-								SwapScenarios.register(QuizEngine);
-								swapReady = true;
-							}
-						} catch (e) {
-							console.error("Swap scenarios unavailable", e);
-							swapReady = false;
-						}
-
-						callback();
+				function failed() {
+					if (token !== loadToken) {
+						return;
 					}
-				}, "overall", parseFormat(settings.format).cp, parseFormat(settings.format).cup);
+
+					var label = $(".academy-league option[value='" + settings.format + "']").text() || settings.format;
+
+					$(".academy-load-error").text("Couldn't load " + label + (window.navigator.onLine === false ? ". You're offline, and this format hasn't been opened on this device yet." : ". Check your connection and try again.") + (loadedFormat ? " Showing " + $(".academy-league option[value='" + loadedFormat + "']").text() + " instead." : "")).removeClass("hide");
+
+					if (loadedFormat) {
+						settings.format = loadedFormat;
+						saveSettings();
+						$(".academy-league").val(loadedFormat);
+						progress.setScope(loadedFormat);
+					}
+				}
+
+				function build(data) {
+					if (token !== loadToken) {
+						return;
+					}
+
+					$(".academy-load-error").addClass("hide");
+
+					pool = QuizEngine.buildPool(gm.data, data, 70, { exclude: formatInfo[settings.format] && formatInfo[settings.format].exclude });
+					progress.setScope(settings.format);
+					loadedFormat = settings.format;
+
+					try {
+						SwapScenarios.init({ pool: pool, cp: format.cp, cup: format.cup });
+
+						if (!swapReady) {
+							SwapScenarios.register(QuizEngine);
+							swapReady = true;
+						}
+					} catch (e) {
+						console.error("Swap scenarios unavailable", e);
+						swapReady = false;
+					}
+
+					callback();
+				}
+
+				if (gm.rankings[cacheKey]) {
+					build(gm.rankings[cacheKey]);
+
+					return;
+				}
+
+				$.getJSON(rankingFile(format.cp, format.cup)).done(function (data) {
+					gm.rankings[cacheKey] = data;
+					build(data);
+				}).fail(failed);
 			}
 
 			// ---------- Modes ----------

@@ -35,6 +35,15 @@ require_once '../header.php';
 		<p>Same-length or evenly dividing moves (3 vs 3, 2 vs 4, anything vs a 1-turn move) stay in step, so you can't improve timing there. The <a href="<?php echo $WEB_ROOT; ?>articles/strategy/guide-to-fast-move-registration/">Fast Move guide</a> was written for the previous battle system, where both Pokemon resumed the turn right after a Charged Move. The free-turn counts here follow the simulator as updated for the 2026 system.</p>
 	</details>
 
+	<p class="academy-load-error hide" role="status"></p>
+
+<?php if($PWA_ENABLED): ?>
+	<div class="academy-install hide">
+		<button type="button" class="button install-btn">Install app</button>
+		<span class="install-ios hide">On iPhone or iPad: tap Share, then Add to Home Screen. The installed app keeps its own progress, separate from Safari.</span>
+	</div>
+<?php endif; ?>
+
 	<div class="academy-setup">
 		<div class="setup-group">
 			<label for="academy-league">League or cup</label>

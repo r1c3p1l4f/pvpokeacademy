@@ -1270,3 +1270,19 @@ body:not(.battle-active) .coach-panel {
 	line-height: 1.35;
 	opacity: 0.9;
 }
+
+.academy-load-error {
+	margin: 8px 0;
+	padding: 8px 12px;
+	border-left: 4px solid #d9534f;
+	background: rgba(217, 83, 79, 0.12);
+	font-size: 0.9em;
+}
+
+.academy-install {
+	margin: 8px 0;
+}
+
+.academy-install .install-ios {
+	font-size: 0.9em;
+}

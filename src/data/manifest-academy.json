@@ -1,0 +1,17 @@
+{
+  "id": "../academy/",
+  "name": "PvP Academy",
+  "short_name": "PvP Academy",
+  "description": "Practice counting Fast Moves, timing Charged Moves and stay-or-swap decisions for Pokemon GO trainer battles.",
+  "start_url": "../academy/",
+  "scope": "../",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d6684",
+  "theme_color": "#0d6684",
+  "icons": [
+    { "src": "../img/academy/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "../img/academy/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "../img/academy/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

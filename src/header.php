@@ -6,6 +6,11 @@ if (strpos($WEB_ROOT, 'src') !== false) {
     $SITE_VERSION = rand(1,1000) . '.' . rand(1,1000) . '.' . rand(1,1000);
 }
 
+// A pinned version, for tests that need a stable service worker and cache
+if(getenv('SITE_VERSION_OVERRIDE') !== false){
+    $SITE_VERSION = getenv('SITE_VERSION_OVERRIDE');
+}
+
 // Initialize settings object
 if(isset($_COOKIE['settings'])){
 	$_SETTINGS = json_decode($_COOKIE['settings']);
@@ -117,10 +122,20 @@ if(! isset($OG_IMAGE)){
 <meta property="og:description" content="<?php echo $META_DESCRIPTION; ?>" />
 <meta property="og:image" content="<?php echo $OG_IMAGE; ?>" />
 
+<?php if($PWA_ENABLED): ?>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PvP Academy">
+<meta name="theme-color" content="#0d6684">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<link rel="manifest" href="<?php echo $WEB_ROOT; ?>data/manifest-academy.json?v=<?php echo $SITE_VERSION; ?>">
+<link rel="apple-touch-icon" href="<?php echo $WEB_ROOT; ?>img/academy/apple-touch-icon.png">
+<?php else: ?>
 <meta name="apple-mobile-web-app-capable">
 <meta name="mobile-web-app-capable">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <link rel="manifest" href="<?php echo $WEB_ROOT; ?>data/manifest.json?v=3">
+<?php endif; ?>
 
 <!--
 <?php if(strpos($_SERVER['REQUEST_URI'], 'team-builder') !== false): ?>

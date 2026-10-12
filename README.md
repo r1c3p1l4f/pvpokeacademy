@@ -96,6 +96,24 @@ Each scenario simulates your current Pokemon and each swap against the opposing 
 
 Team shape letters are derived from the type chart. Two Pokemon share a letter when at least half of their weaknesses overlap: ABC has three different answers, ABB has two back Pokemon that lose to the same things, and ABA has a lead and closer that do.
 
+### Installable app (PWA)
+
+The Academy can be installed to a phone's home screen and used offline. It is off by default, so a stock deployment behaves exactly as upstream does. To turn it on, set `$PWA_ENABLED = true` in `src/modules/config.php`, on a site served over HTTPS (service workers do not run on plain HTTP, except on localhost). Also change `$WEB_HOST` there from `http://` to `https://`.
+
+What it does when on:
+
+- Every page links `data/manifest-academy.json` instead of the stock manifest, so "Add to Home Screen" from any page gives an app named "PvP Academy" that opens the Academy. The name and icons are placeholders: change `name`/`short_name` in the manifest and the `apple-mobile-web-app-title` tag in `header.php`. The icons in `img/academy/` are original artwork.
+- `service-worker.js` is registered by absolute, versioned URL (`service-worker.js?v=<site version>`). Pages are network-first (the saved copy is used only when the network fails or is slow), versioned files are cache-first, and everything else, including the Train mode's database endpoints, passes through untouched.
+- The Academy shows an Install button where the browser supports it (Chrome and Edge). On iPhone and iPad it explains Share, then Add to Home Screen.
+- If a format's ranking can't be loaded, such as one never opened while online, the quiz says so and goes back to the last format that loaded instead of hanging.
+
+Things to know when deploying:
+
+- **Bump `$SITE_VERSION` in `header.php` on every upload.** The worker and the cached files are keyed to it. If you upload changes without bumping it, testers keep the old scripts until they clear site data. A new version installs a new worker, which takes over immediately and deletes the old caches.
+- **Offline covers the Academy**, and only the formats that have been opened while online (the first open of each downloads its ranking file). Train and Battle need more data than is cached, so they are not promised offline.
+- **On iOS the installed app has its own storage**, separate from Safari, so quiz progress built up in the browser does not appear in the installed app.
+- Locally, `$WEB_ROOT` containing `src` randomizes the version on every page load. For testing the worker, pin it with the `SITE_VERSION_OVERRIDE` environment variable and enable the flag with `PWA_ENABLED=1`.
+
 ### Tests
 
 ```
@@ -115,6 +133,7 @@ SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules
 SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/mega-check.mjs
 SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/cups-check.mjs
 SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/phone-check.mjs
+PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/pwa-check.mjs   # starts its own PHP servers, no SITE_URL
 ```
 
 ## Contributing
