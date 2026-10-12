@@ -144,6 +144,10 @@ if(! isset($OG_IMAGE)){
 	<link rel="stylesheet" type="text/css" href="<?php echo $WEB_ROOT; ?>css/train.css?v=22">
 <?php endif; ?>
 
+<?php if(strpos($META_TITLE, 'Train') !== false || strpos($META_TITLE, 'Academy') !== false || strpos($_SERVER['REQUEST_URI'], 'battle') !== false): ?>
+	<link rel="stylesheet" type="text/css" href="<?php echo $WEB_ROOT; ?>css/academy.css?v=1">
+<?php endif; ?>
+
 <?php if(strpos($_SERVER['REQUEST_URI'], 'articles') !== false): ?>
 	<link rel="stylesheet" type="text/css" href="<?php echo $WEB_ROOT; ?>css/article-extras.css?v=23">
 <?php endif; ?>
@@ -218,7 +222,7 @@ if(! isset($OG_IMAGE)){
 
 </head>
 
-<body <?php if($_SETTINGS->colorblindMode == 1): ?>class="colorblind"<?php endif; ?>>
+<body data-theme="<?php echo htmlspecialchars($_SETTINGS->theme); ?>" <?php if($_SETTINGS->colorblindMode == 1): ?>class="colorblind"<?php endif; ?>>
 
 	<?php  if(false): // Removing this but saving code for future use ?>
 		<?php if(strpos($_SERVER['REQUEST_URI'], 'twilight-trails') == false): ?>
@@ -275,12 +279,13 @@ if(! isset($OG_IMAGE)){
 					</div>
 					<a class="icon-team <?php if(strpos($_SERVER['REQUEST_URI'], '/team-builder/')): echo "selected"; endif; ?>" href="<?php echo $WEB_ROOT; ?>team-builder/">Team Builder</a>
 					<div class="parent-menu">
-						<a class="icon-train <?php if(strpos($_SERVER['REQUEST_URI'], '/train/')): echo "selected"; endif; ?>" href="<?php echo $WEB_ROOT; ?>train/">
+						<a class="icon-train <?php if(strpos($_SERVER['REQUEST_URI'], '/train/') || strpos($_SERVER['REQUEST_URI'], '/academy/')): echo "selected"; endif; ?>" href="<?php echo $WEB_ROOT; ?>train/">
 							Train <span></span>
 						</a>
 						<div class="submenu">
 							<div class="submenu-wrap">
 								<a href="<?php echo $WEB_ROOT; ?>train/analysis/">Top Performers</a>
+								<a href="<?php echo $WEB_ROOT; ?>academy/">Academy</a>
 							</div>
 						</div>
 					</div>

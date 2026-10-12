@@ -1,0 +1,448 @@
+/*
+* Coach - live fast move counting, energy tracking and throw timing feedback for Training Battles.
+*
+* Modes (chosen on the Train setup page, changeable mid-battle):
+*   learn  - both Pokemon's energy, Fast Move counters, and a "throw now / tap again" prompt
+*   count  - your energy plus a raw count of the opponent's taps. No energy shown, no prompts. Count it yourself!
+*   review - nothing live. Throws are graded and summarised on the end screen.
+*   off    - Coach disabled
+*
+* In every mode except off, each Charged Move is graded when it's thrown and a Timing tab is added to the end screen.
+*
+* Depends on TurnMath.js and the throw log in Battle.js (battle.setTrackThrows).
+*/
+
+var Coach = (function () {
+	var MODES = {
+		learn: "Learn: show everything",
+		count: "Count: your energy + opponent taps",
+		review: "Review: feedback after throws",
+		off: "Off"
+	};
+
+	var STORAGE_KEY = "academy.coachMode";
+	var DEFAULT_MODE = "learn";
+
+	var GRADES = TimingFeedback.GRADES;
+
+	var battle = null;
+	var mode = DEFAULT_MODE;
+	var panel = null;
+	var active = false;
+
+	var logIndex = 0; // How much of the battle's throw log has been processed
+	var throws = []; // Graded throws, both players
+	var taps = [0, 0]; // Fast Moves tapped since each side's last Charged Move
+	var species = [null, null];
+	var fullEnergyTurns = 0;
+	var lastTurn = 0;
+	var latestAdvice = null;
+
+	// ---------- Settings ----------
+
+	function loadMode() {
+		try {
+			var saved = window.localStorage.getItem(STORAGE_KEY);
+
+			if (saved && MODES[saved]) {
+				return saved;
+			}
+		} catch (e) {
+			// Storage can be blocked, fall back to the default
+		}
+
+		return DEFAULT_MODE;
+	}
+
+	function saveMode(value) {
+		try {
+			window.localStorage.setItem(STORAGE_KEY, value);
+		} catch (e) {
+			// Ignore
+		}
+	}
+
+	function setMode(value) {
+		if (!MODES[value]) {
+			return;
+		}
+
+		mode = value;
+		saveMode(value);
+
+		if (battle) {
+			battle.setTrackThrows(mode !== "off");
+		}
+
+		if (panel) {
+			panel.attr("data-mode", mode);
+			panel.find(".coach-mode-switch").val(mode);
+			render();
+		}
+	}
+
+	// Fill a select with the coach options and keep it synced with the saved choice
+	function populateModeSelect($select) {
+		$select.html("");
+
+		Object.keys(MODES).forEach(function (key) {
+			$select.append($("<option>").attr("value", key).text(MODES[key]));
+		});
+
+		$select.val(mode);
+	}
+
+	// ---------- Helpers ----------
+
+	function cheapestMove(moves) {
+		return moves.reduce(function (best, m) {
+			return (!best || m.energy < best.energy) ? m : best;
+		}, null);
+	}
+
+	function safeDamage(attacker, defender, move) {
+		try {
+			return DamageCalculator.damage(attacker, defender, move);
+		} catch (e) {
+			return move.damage || 0;
+		}
+	}
+
+	var pluralize = TimingFeedback.pluralize;
+
+	function esc(str) {
+		return $("<div>").text(str).html();
+	}
+
+	// ---------- Live advice ----------
+
+	/*
+	* What should the player do next turn? Returns {css, text} or null.
+	*/
+	function computeAdvice(me, opp) {
+		var ready = me.chargedMoves.filter(function (m) { return me.energy >= m.energy; });
+
+		if (ready.length === 0) {
+			return null;
+		}
+
+		var move = cheapestMove(ready);
+		var bestReady = ready.reduce(function (best, m) { return (!best || m.energy > best.energy) ? m : best; }, null);
+
+		// A Charged Move that knocks out an unshielded opponent should just be thrown
+		if (opp.shields === 0) {
+			for (var i = 0; i < ready.length; i++) {
+				if (safeDamage(me, opp, ready[i]) >= opp.hp) {
+					return { css: "go", text: "Throw <b>" + esc(ready[i].name) + "</b> now. It knocks " + esc(opp.speciesName) + " out." };
+				}
+			}
+		}
+
+		var adv = TurnMath.adviseThrow({
+			a: me.fastMove.turns,
+			b: opp.fastMove.turns,
+			myCd: me.cooldown / TurnMath.TURN_MS,
+			oppCd: opp.cooldown / TurnMath.TURN_MS,
+			energy: me.energy,
+			gain: me.fastMove.energyGain,
+			cost: move.energy,
+			maxWait: 2,
+			danger: { hp: me.hp, oppFastDamage: safeDamage(opp, me, opp.fastMove), oppDuration: opp.fastMove.turns }
+		});
+
+		var when = adv.now.turn > 1 ? " (in " + pluralize(adv.now.turn, "turn") + ")" : "";
+		var name = esc(ready.length > 1 ? bestReady.name : move.name);
+
+		if (adv.action === "wait") {
+			return {
+				css: "wait",
+				text: "Tap " + esc(me.fastMove.name) + " again. " + esc(adv.reason) + ""
+			};
+		}
+
+		if (adv.now.good) {
+			return { css: "go", text: "Throw <b>" + name + "</b>" + when + ". " + esc(adv.reason) };
+		}
+
+		return { css: "warn", text: "You can throw <b>" + name + "</b>" + when + ", but " + esc(adv.reason.charAt(0).toLowerCase() + adv.reason.slice(1)) };
+	}
+
+	// ---------- Throw grading ----------
+
+	// ---------- Rendering ----------
+
+	function buildPanel() {
+		var $panel = $(
+			'<div class="coach-panel">' +
+				'<div class="coach-header">' +
+					'<span class="coach-title">Coach</span>' +
+					'<select class="coach-mode-switch" aria-label="Coach mode"></select>' +
+					'<span class="coach-turn"></span>' +
+				'</div>' +
+				'<div class="coach-advice"></div>' +
+				'<div class="coach-side self"></div>' +
+				'<div class="coach-side opp"></div>' +
+				'<ul class="coach-log"></ul>' +
+			'</div>'
+		);
+
+		populateModeSelect($panel.find(".coach-mode-switch"));
+		$panel.find(".coach-mode-switch").on("change", function () {
+			setMode($(this).val());
+		});
+
+		// Don't let panel clicks reach the battle window's tap handler
+		$panel.on("click mousedown mouseup touchstart touchend", function (e) {
+			e.stopPropagation();
+		});
+
+		return $panel;
+	}
+
+	function energyBar(poke, label) {
+		var pct = Math.min(poke.energy, 100);
+		var ticks = "";
+
+		poke.chargedMoves.forEach(function (m) {
+			ticks += '<span class="tick" style="left:' + Math.min(m.energy, 100) + '%" title="' + esc(m.name) + ' ' + m.energy + '"></span>';
+		});
+
+		return '<div class="energy-row"><span class="label">' + label + '</span>' +
+			'<div class="energy-bar"><div class="fill" style="width:' + pct + '%"></div>' + ticks + '</div>' +
+			'<span class="value">' + Math.floor(poke.energy) + '</span></div>';
+	}
+
+	function counters(poke) {
+		var gain = poke.fastMove.energyGain;
+		var html = '<div class="counter-list">';
+
+		poke.chargedMoves.forEach(function (m) {
+			var needed = TurnMath.fastMovesToReach(poke.energy, m.energy, gain);
+
+			if (needed === 0) {
+				html += '<span class="counter ready ' + m.type + '"><b>' + esc(m.name) + '</b> ' + m.energy + ' &#10003;</span>';
+			} else {
+				html += '<span class="counter ' + m.type + '"><b>' + esc(m.name) + '</b> ' + m.energy + ' &middot; ' + pluralize(needed, "Fast Move") + ' (' + (needed * poke.fastMove.turns) + 't)</span>';
+			}
+		});
+
+		return html + '</div>';
+	}
+
+	function sideHtml(poke, who, showEnergy) {
+		var header = '<div class="side-title">' + esc(poke.speciesName) + ' <small>' + esc(poke.fastMove.name) + ' +' + poke.fastMove.energyGain + ' / ' + poke.fastMove.turns + ' turn' + (poke.fastMove.turns === 1 ? "" : "s") + '</small></div>';
+
+		if (!showEnergy) {
+			return header + '<div class="tap-count">Taps since their last Charged Move: <b>' + taps[1] + '</b></div>';
+		}
+
+		return header + energyBar(poke, who) + counters(poke);
+	}
+
+	function render() {
+		if (!panel || !active) {
+			return;
+		}
+
+		panel.attr("data-mode", mode);
+		panel.find(".coach-turn").text(lastTurn ? "Turn " + lastTurn : "");
+
+		var poke = battle.getPokemon();
+
+		if (!poke[0] || !poke[1] || mode === "off") {
+			panel.hide();
+			return;
+		}
+
+		panel.show();
+
+		var showLive = (mode === "learn" || mode === "count");
+		panel.find(".coach-side, .coach-advice").toggle(showLive);
+
+		if (showLive) {
+			panel.find(".coach-side.self").html(sideHtml(poke[0], "You", true));
+			panel.find(".coach-side.opp").html(sideHtml(poke[1], "Opp", mode === "learn"));
+
+			var $advice = panel.find(".coach-advice");
+
+			if (mode === "learn" && latestAdvice) {
+				$advice.attr("class", "coach-advice " + latestAdvice.css).html(latestAdvice.text).show();
+			} else if (mode === "learn") {
+				$advice.attr("class", "coach-advice idle").html("Keep tapping. Count your Fast Moves to your next Charged Move.").show();
+			} else {
+				$advice.hide();
+			}
+		}
+
+		// Log of throws, newest first
+		var $log = panel.find(".coach-log").html("");
+
+		throws.slice(-6).reverse().forEach(function (t) {
+			var g = GRADES[t.grade];
+			var $item = $('<li class="' + g.css + ' actor-' + t.actor + '"></li>');
+
+			$item.append('<span class="icon">' + g.icon + '</span>');
+			$item.append($('<span class="text"></span>').html('<small>T' + t.turn + '</small> ' + esc(TimingFeedback.describe(t)) + ' ' + esc(TimingFeedback.betterNext(t))));
+			$log.append($item);
+		});
+	}
+
+	// ---------- Battle hooks ----------
+
+	function start(b, players) {
+		battle = b;
+
+		// The saved choice is the single source of truth: the setup page and the in-battle switch both write to it
+		mode = loadMode();
+
+		throws = [];
+		logIndex = 0;
+		taps = [0, 0];
+		species = [null, null];
+		fullEnergyTurns = 0;
+		lastTurn = 0;
+		latestAdvice = null;
+		active = true;
+
+		battle.setTrackThrows(mode !== "off");
+
+		if (!panel) {
+			panel = buildPanel();
+			panel.insertAfter($(".battle-window"));
+		}
+
+		populateModeSelect(panel.find(".coach-mode-switch"));
+		panel.attr("data-mode", mode);
+		panel.find(".coach-log").html("");
+		render();
+	}
+
+	/*
+	* Called by the battle interface on every turn update.
+	*/
+	function update(response) {
+		if (!active || !battle) {
+			return;
+		}
+
+		lastTurn = response.turn;
+
+		// Count each side's taps and reset on a switch
+		for (var i = 0; i < 2; i++) {
+			if (species[i] !== response.pokemon[i]) {
+				species[i] = response.pokemon[i];
+				taps[i] = 0;
+			}
+		}
+
+		(response.animations || []).forEach(function (anim) {
+			if (anim.type === "fast") {
+				taps[anim.actor]++;
+			}
+		});
+
+		// Grade any new Charged Moves
+		var log = battle.getThrowLog();
+
+		while (logIndex < log.length) {
+			var graded = TimingFeedback.grade(log[logIndex++]);
+
+			throws.push(graded);
+			taps[graded.actor] = 0;
+		}
+
+		var me = response.pokemon[0];
+		var opp = response.pokemon[1];
+
+		if (response.phase === "neutral" && me.energy >= TurnMath.MAX_ENERGY && me.hp > 0) {
+			fullEnergyTurns++;
+		}
+
+		latestAdvice = (response.phase === "neutral" && me.hp > 0 && opp.hp > 0) ? computeAdvice(me, opp) : null;
+
+		render();
+	}
+
+	function stop() {
+		active = false;
+
+		if (panel) {
+			panel.hide();
+		}
+	}
+
+	// ---------- End of battle report ----------
+
+	function summarize() {
+		var result = TimingFeedback.summarize(throws);
+
+		result.fullEnergyTurns = fullEnergyTurns;
+
+		return result;
+	}
+
+	function renderReport($container) {
+		if (!$container || !$container.length) {
+			return;
+		}
+
+		if (!active && throws.length === 0) {
+			$container.html('<p class="description">Turn the Coach on in the Train settings to see timing feedback.</p>');
+			return;
+		}
+
+		var s = summarize();
+		var html = '<p class="description">Each Charged Move is graded by how many turns of cooldown the other side had left. Throwing on the last turn of their Fast Move gives them no free turns.</p>';
+
+		if (s.you.total === 0) {
+			html += '<p>You didn\'t throw any Charged Moves this battle.</p>';
+		} else {
+			html += '<div class="timing-summary">' +
+				'<div class="stat"><b>' + s.you.clean + ' / ' + s.you.total + '</b><span>clean throws</span></div>' +
+				'<div class="stat"><b>' + s.you.freeTurns + '</b><span>free turns given</span></div>' +
+				'<div class="stat"><b>+' + s.you.energy + '</b><span>energy they gained from it</span></div>' +
+				'<div class="stat"><b>+' + s.you.damage + '</b><span>damage they gained from it</span></div>' +
+				'</div>';
+
+			if (s.you.counts.sneak > 0) {
+				html += '<p class="tip-line bad">You were sneaked ' + pluralize(s.you.counts.sneak, "time") + '. When your opponent just tapped a long Fast Move, wait for its last turn before throwing.</p>';
+			}
+		}
+
+		if (s.fullEnergyTurns > 4) {
+			html += '<p class="tip-line minor">You sat at full energy for ' + (s.fullEnergyTurns / 2) + ' seconds. Energy past 100 is wasted, so throw before you cap.</p>';
+		}
+
+		if (s.opp.total > 0) {
+			html += '<p class="opp-line">Opponent: ' + s.opp.clean + ' / ' + s.opp.total + ' clean throws, gave you ' + s.opp.freeTurns + ' free turn' + (s.opp.freeTurns === 1 ? '' : 's') + '.</p>';
+		}
+
+		html += '<ul class="coach-log full">';
+
+		throws.forEach(function (t) {
+			var g = GRADES[t.grade];
+
+			html += '<li class="' + g.css + ' actor-' + t.actor + '"><span class="icon">' + g.icon + '</span><span class="text"><small>T' + t.turn + ' ' + (t.actor === 0 ? 'You' : 'Opp') + '</small> ' + esc(TimingFeedback.describe(t)) + ' ' + esc(TimingFeedback.betterNext(t)) + '</span></li>';
+		});
+
+		html += '</ul>';
+
+		$container.html(html);
+	}
+
+	mode = loadMode();
+
+	return {
+		MODES: MODES,
+		start: start,
+		update: update,
+		stop: stop,
+		setMode: setMode,
+		getMode: function () { return mode; },
+		loadMode: loadMode,
+		populateModeSelect: populateModeSelect,
+		renderReport: renderReport,
+		summarize: summarize,
+		getThrows: function () { return throws; }
+	};
+})();

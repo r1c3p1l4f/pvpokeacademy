@@ -105,6 +105,12 @@ var BattlerMaster = (function () {
 				battle.setPlayers(players);
 				battle.setNewPokemon(players[0].getTeam()[0], 0, false);
 				battle.setNewPokemon(players[1].getTeam()[0], 1, false);
+
+				// Start the academy coach before emulation so it can record every Charged Move
+				if(typeof Coach !== "undefined"){
+					Coach.start(battle, players);
+				}
+
 				battle.emulate(self.update);
 
 				// Reset interface for new battle
@@ -561,6 +567,11 @@ var BattlerMaster = (function () {
 
 				// Complete any outstanding switch animations
 				self.completeSwitchAnimation();
+
+				// Update the coach display
+				if(typeof Coach !== "undefined"){
+					Coach.update(response);
+				}
 			}
 
 
@@ -731,6 +742,14 @@ var BattlerMaster = (function () {
 					opponentName = properties.featuredTeam.name;
 				}
 				$(".end-screen .difficulty-name").html(opponentName);
+
+				// Display timing feedback from the coach
+
+				if(typeof Coach !== "undefined"){
+					Coach.renderReport($(".end-screen .tab-section.timing"));
+					$(".end-screen a.tab[href='timing']").toggle(Coach.getMode() != "off");
+					Coach.stop();
+				}
 
 				// Reset tabs
 
@@ -1188,6 +1207,11 @@ var BattlerMaster = (function () {
 			// User has confirmed they want to quit the battle
 			function confirmQuitBattle(e){
 				battle.stop();
+
+				if(typeof Coach !== "undefined"){
+					Coach.stop();
+				}
+
 				closeModalWindow();
 
 				if(properties.mode == "single"){

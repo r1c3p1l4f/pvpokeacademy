@@ -12,6 +12,7 @@ require_once '../header.php';
 	<div class="ranking-categories mode-select">
 		<a class="selected" href="<?php echo $WEB_ROOT; ?>train/">Train</a>
 		<a href="<?php echo $WEB_ROOT; ?>train/analysis/">Top Performers</a>
+		<a href="<?php echo $WEB_ROOT; ?>academy/">Academy</a>
 	</div>
 	<div class="clear"></div>
 	<p class="description">Select your team and options below to battle in a real-time simulation against a CPU opponent.</p>
@@ -54,6 +55,9 @@ require_once '../header.php';
 				<option value="3" selected>Champion</option>
 			</select>
 			<div class="check autotap-toggle"><span></span>Autotap</div>
+			<h3 class="section-title">Coach</h3>
+			<select class="coach-select"></select>
+			<p class="coach-help">Counts Fast Moves, tracks energy, and tells you when you threw a Charged Move on bad timing. <a href="<?php echo $WEB_ROOT; ?>academy/" class="inline-link">Practice in the Academy</a>.</p>
 			<h3 class="section-title">Team Selection</h3>
 			<select class="team-method-select">
 				<option value="random">Random</option>

@@ -58,6 +58,9 @@ function Battle(){
 
 	var usePriority = false;
 
+	var trackThrows = false; // Record details of each Charged Move for timing feedback (see js/academy)
+	var throwLog = [];
+
 	var chargeAmount = 0; // Multiplier used in emulated battles
 	var playerUseShield = false; // Flag for a player to use an available shield in emulated battles
 
@@ -271,6 +274,7 @@ function Battle(){
 		turnAnimations = [];
 		switchTimerMarked = false;
 		decisionLog = [];
+		throwLog = [];
 	}
 
 	// Process a turn
@@ -869,6 +873,10 @@ function Battle(){
 				// Validate this move can be used
 
 				if(poke.energy >= move.energy){
+					if(trackThrows){
+						self.logThrow(poke, opponent, move);
+					}
+
 					if(mode == "simulate"){
 						self.useMove(poke, opponent, move, action.settings.shielded, action.settings.buffs, action.settings.charge);
 					} else if((mode == "emulate")&&(phase != "suspend_charged")){
@@ -1009,6 +1017,64 @@ function Battle(){
 				}
 				break;
 		}
+	}
+
+	// Record the state of a Charged Move throw so the Academy tools can grade its timing.
+	// oppCooldown is in turns and is read after this turn's Fast Moves were decided, so a Fast Move
+	// the opponent tapped this very turn counts as its full duration.
+
+	this.logThrow = function(poke, opponent, move){
+		var simultaneous = false;
+
+		for(var i = 0; i < turnActions.length; i++){
+			if(turnActions[i].type == "charged" && turnActions[i].actor == opponent.index){
+				simultaneous = true;
+			}
+		}
+
+		var oppFastDamage = 0;
+
+		try{
+			oppFastDamage = DamageCalculator.damage(opponent, poke, opponent.fastMove);
+		} catch(e){
+			oppFastDamage = opponent.fastMove.damage || 0;
+		}
+
+		throwLog.push({
+			turn: turns,
+			time: time,
+			actor: poke.index,
+			moveId: move.moveId,
+			moveName: move.name,
+			cost: move.energy,
+			energyBefore: poke.energy,
+			oppCooldown: opponent.cooldown / deltaTime,
+			oppFastTurns: opponent.fastMove.turns,
+			oppFastGain: opponent.fastMove.energyGain,
+			oppFastDamage: oppFastDamage,
+			oppFastName: opponent.fastMove.name,
+			myFastTurns: poke.fastMove.turns,
+			myFastGain: poke.fastMove.energyGain,
+			pokeName: poke.speciesName,
+			oppName: opponent.speciesName,
+			oppEnergy: opponent.energy,
+			oppHp: opponent.hp,
+			hp: poke.hp,
+			shielded: opponent.shields > 0,
+			simultaneous: simultaneous
+		});
+	}
+
+	this.setTrackThrows = function(val){
+		trackThrows = val;
+	}
+
+	this.isTrackingThrows = function(){
+		return trackThrows;
+	}
+
+	this.getThrowLog = function(){
+		return throwLog;
 	}
 
 	// Use a move on an opposing Pokemon and produce a Timeline Event

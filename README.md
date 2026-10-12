@@ -33,6 +33,47 @@ Rankings can be generated locally using the following steps:
 
 Feel free to copy the `Ranker.js` or `RankerOverall.js` files and experiment with your own modifications or algorithms.
 
+## Academy
+
+The Academy adds counting and move timing practice on top of the simulator. Everything lives in `src/js/academy` and `src/academy`.
+
+- **Coach (Train).** Pick a Coach mode on the Train setup page. *Learn* shows both Pokemon's energy, the Fast Moves left to each Charged Move, and a "throw now / tap again" prompt. *Count* shows your energy and only a raw count of the opponent's taps, so you do the counting. *Review* stays quiet and grades afterward. Every Charged Move, yours and theirs, is graded as it happens, and the end screen has a Timing tab.
+- **Energy & Timing (Battle).** Under each simulated timeline: energy over time for both Pokemon, the Fast Moves between throws, a count sheet, and a grade for every Charged Move. In Sandbox Mode it updates as you place throws, so you can see what a sneak costs.
+- **Quiz and flashcards (`/academy/`).** Fast Move counting, tracking an opponent's energy from what they've done, throw timing (including "I run a 5-turn move, they run a 3-turn move, when can I throw?"), and stay-or-swap scenarios for ABA, ABB and ABC teams. Missed cards come back until you get them right a few times in a row. Progress is stored in the browser only.
+
+### How timing is graded
+
+A Fast Move registers on its last turn. A Charged Move takes its own turn, then both Pokemon tap again two turns after the throw. So when you throw while the opponent has `rho` turns left on their Fast Move, their next tap comes `rho - 2` turns earlier than it would have. Positive values are "free turns" for them.
+
+| Turns left (`rho`) | Grade |
+| --- | --- |
+| 1 | Perfect. Their move registers and they lose a turn |
+| 2 | Good. No free turns |
+| 3 | Minor leak. 1 free turn |
+| 4 or more | Bad |
+| Their full move length | Sneak. They tapped on your throw turn |
+
+This was measured against `Battle.js` rather than assumed. `tests/academy/engine-check.mjs` forces a throw on every opportunity for every pair of 1 to 5 turn Fast Moves and compares the engine's result with `TurnMath`.
+
+### Stay or swap
+
+Each scenario simulates your current Pokemon and each swap against the opposing lead, then applies written rules in `SwapScenarios.decide`: stay when winning, swap to the Pokemon that beats the lead, spend the weaker closer first when two answers are close, and stay and trade when nothing beats it. These rules judge the lead matchup and what a swap costs. They don't know the opponent's back line, so treat them as coaching heuristics rather than a solved game.
+
+Team shape letters are derived from the type chart. Two Pokemon share a letter when at least half of their weaknesses overlap: ABC has three different answers, ABB has two back Pokemon that lose to the same things, and ABA has a lead and closer that do.
+
+### Tests
+
+```
+node --test tests/academy/*.test.mjs
+```
+
+The browser tests need the site running (for example `php -S` with `/pvpoke/src/` pointing at `src`) and Playwright:
+
+```
+SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/engine-check.mjs
+SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/ui-check.mjs
+```
+
 ## Contributing
 
 I’m excited to work and collaborate with everyone who wants to be a part of this project, big or small. After all, I’m just a Pokemon fan probably like many of you. In this section, I want to be clear about the vision and scope I have in mind for this project to properly set expectations about contributing code, what may or may not be accepted, etc.
