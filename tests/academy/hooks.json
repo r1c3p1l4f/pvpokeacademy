@@ -1,28 +1,143 @@
 {
   "_about": "Every place the Academy touches a file that upstream (pvpoke/pvpoke) owns. After merging upstream, hooks.test.mjs fails if one of these anchors has been lost, which is the cue to re-apply the hook. Anything not listed here is an Academy-only file and cannot conflict.",
   "hooks": [
-    { "file": "src/js/battle/Battle.js", "why": "Throw log, step log and throw observer (the engine measurement behind the Coach and the timing audit)",
-      "contains": ["var trackThrows = false;", "var stepLog = [];", "var throwObserver = null;", "var decisionState = null;", "var acceptedThisStep = [];", "stepLog.push({", "self.logThrow(poke, opponent, move);", "this.logThrow = function(poke, opponent, move){", "entry.engine = throwObserver(poke, opponent, move, snapshot, self);", "this.setThrowObserver = function(fn){", "this.setTrackThrows = function(val){", "this.isTrackingThrows = function(){", "this.getStepLog = function(){", "this.getThrowLog = function(){"] },
-    { "file": "src/js/training/TrainingAI.js", "why": "Read-only view of the opponent AI's plan (Learn mode)",
-      "contains": ["var overfarming = false;", "this.getPlan = function(){", "overfarming = false;", "overfarming = poke.chargedMoves.some("] },
-    { "file": "src/js/interface/Interface.js", "why": "Battle page: turn on throw tracking, register the engine observer, render the Energy & Timing panel",
-      "contains": ["battle.setTrackThrows(true);", "battle.setThrowObserver(", "TimelineAudit.render(b);"] },
-    { "file": "src/js/training/BattleInterface.js", "why": "Train mode: start, update, report and stop the Coach",
-      "contains": ["Coach.start(battle, players);", "Coach.update(response);", "Coach.renderReport(", "Coach.stop();"] },
-    { "file": "src/js/training/TrainingSetupInterface.js", "why": "Train setup: Coach mode select",
-      "contains": ["Coach.populateModeSelect(", "Coach.setMode("] },
-    { "file": "src/battle.php", "why": "Battle page: Energy & Timing section and the Academy scripts",
-      "contains": ["class=\"timing-audit", "js/academy/TurnMath.js", "js/academy/EngineReasons.js", "js/academy/EngineAdvisor.js", "js/academy/TimingFeedback.js", "js/academy/TimelineAudit.js"] },
-    { "file": "src/modules/scripts/train-scripts.php", "why": "Train page: the Coach scripts, in dependency order",
-      "contains": ["js/academy/TurnMath.js", "js/academy/EngineReasons.js", "js/academy/TimingFeedback.js", "js/academy/EngineAdvisor.js", "js/academy/Coach.js"] },
-    { "file": "src/train/index.php", "why": "Train page: Academy nav link, Coach setup section",
-      "contains": ["academy/\">Academy</a>", "class=\"coach-select\""] },
-    { "file": "src/train/analysis.php", "why": "Academy nav link", "contains": ["academy/\">Academy</a>"] },
-    { "file": "src/train/modules/end-screen.php", "why": "Train end screen: Timing tab", "contains": ["href=\"timing\"", "tab-section timing"] },
-    { "file": "src/header.php", "why": "PWA tags, Academy version suffix, pinned test version",
-      "contains": ["academy/version.txt", "SITE_VERSION_OVERRIDE", "$PWA_ENABLED", "academy/manifest.json", "apple-touch-icon"] },
-    { "file": "src/footer.php", "why": "Service worker registration by absolute, versioned URL when the PWA is on", "contains": ["$PWA_ENABLED", "service-worker.js?v="] },
-    { "file": "src/modules/config.php", "why": "PWA flag and the untracked config.local.php include", "contains": ["$PWA_ENABLED", "config.local.php"] },
-    { "file": "src/service-worker.js", "why": "Replaces upstream's empty file; stays inert without ?v=", "contains": ["if (VERSION) {", "self.addEventListener('fetch'"] }
+    {
+      "file": "src/js/battle/Battle.js",
+      "why": "Throw log, step log and throw observer (the engine measurement behind the Coach and the timing audit)",
+      "contains": [
+        "var trackThrows = false;",
+        "var stepLog = [];",
+        "var throwObserver = null;",
+        "var decisionState = null;",
+        "var acceptedThisStep = [];",
+        "stepLog.push({",
+        "self.logThrow(poke, opponent, move);",
+        "this.logThrow = function(poke, opponent, move){",
+        "entry.engine = throwObserver(poke, opponent, move, snapshot, self);",
+        "this.setThrowObserver = function(fn){",
+        "this.setTrackThrows = function(val){",
+        "this.isTrackingThrows = function(){",
+        "this.getStepLog = function(){",
+        "this.getThrowLog = function(){"
+      ]
+    },
+    {
+      "file": "src/js/training/TrainingAI.js",
+      "why": "Read-only view of the opponent AI's plan (Learn mode)",
+      "contains": [
+        "var overfarming = false;",
+        "this.getPlan = function(){",
+        "overfarming = false;",
+        "overfarming = poke.chargedMoves.some("
+      ]
+    },
+    {
+      "file": "src/js/interface/Interface.js",
+      "why": "Battle page: turn on throw tracking, register the engine observer, render the Energy & Timing panel",
+      "contains": [
+        "battle.setTrackThrows(true);",
+        "battle.setThrowObserver(",
+        "TimelineAudit.render(b);"
+      ]
+    },
+    {
+      "file": "src/js/training/BattleInterface.js",
+      "why": "Train mode: start, update, report and stop the Coach",
+      "contains": [
+        "Coach.start(battle, players);",
+        "Coach.update(response);",
+        "Coach.renderReport(",
+        "Coach.stop();"
+      ]
+    },
+    {
+      "file": "src/js/training/TrainingSetupInterface.js",
+      "why": "Train setup: Coach mode select",
+      "contains": [
+        "Coach.populateModeSelect(",
+        "Coach.setMode("
+      ]
+    },
+    {
+      "file": "src/battle.php",
+      "why": "Battle page: Energy & Timing section and the Academy scripts",
+      "contains": [
+        "class=\"timing-audit",
+        "js/academy/TurnMath.js",
+        "js/academy/EngineReasons.js",
+        "js/academy/EngineAdvisor.js",
+        "js/academy/TimingFeedback.js",
+        "js/academy/TimelineAudit.js"
+      ]
+    },
+    {
+      "file": "src/modules/scripts/train-scripts.php",
+      "why": "Train page: the Coach scripts, in dependency order",
+      "contains": [
+        "js/academy/TurnMath.js",
+        "js/academy/EngineReasons.js",
+        "js/academy/TimingFeedback.js",
+        "js/academy/EngineAdvisor.js",
+        "js/academy/Coach.js"
+      ]
+    },
+    {
+      "file": "src/train/index.php",
+      "why": "Train page: Academy nav link, Coach setup section",
+      "contains": [
+        "academy/\">Academy</a>",
+        "class=\"coach-select\""
+      ]
+    },
+    {
+      "file": "src/train/analysis.php",
+      "why": "Academy nav link",
+      "contains": [
+        "academy/\">Academy</a>"
+      ]
+    },
+    {
+      "file": "src/train/modules/end-screen.php",
+      "why": "Train end screen: Timing tab",
+      "contains": [
+        "href=\"timing\"",
+        "tab-section timing"
+      ]
+    },
+    {
+      "file": "src/header.php",
+      "why": "PWA tags, Academy version suffix, pinned test version",
+      "contains": [
+        "academy/version.txt",
+        "SITE_VERSION_OVERRIDE",
+        "$PWA_ENABLED",
+        "academy/manifest.json",
+        "apple-touch-icon"
+      ]
+    },
+    {
+      "file": "src/footer.php",
+      "why": "Service worker registration by absolute, versioned URL when the PWA is on",
+      "contains": [
+        "$PWA_ENABLED",
+        "service-worker.js?v="
+      ]
+    },
+    {
+      "file": "src/modules/config.php",
+      "why": "PWA flag and the untracked config.local.php include (ignored by src/modules/.gitignore, which is the Academy's own file)",
+      "contains": [
+        "$PWA_ENABLED",
+        "config.local.php"
+      ]
+    },
+    {
+      "file": "src/service-worker.js",
+      "why": "Replaces upstream's empty file; stays inert without ?v=",
+      "contains": [
+        "if (VERSION) {",
+        "self.addEventListener('fetch'"
+      ]
+    }
   ]
 }
