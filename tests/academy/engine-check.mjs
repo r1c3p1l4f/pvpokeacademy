@@ -20,6 +20,7 @@ const require = createRequire(process.env.PLAYWRIGHT_PATH || '/node-tools/node_m
 const { chromium } = require('playwright');
 
 const SITE = process.env.SITE_URL || 'http://127.0.0.1:8080/pvpoke/src/';
+const OFFSET = parseInt(process.env.EXPECT_OFFSET || '2', 10);
 const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
 const page = await browser.newPage();
 await page.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, r => r.abort());
@@ -94,9 +95,12 @@ let bad = 0;
 for (const r of results) {
 	const w = TM.syncWindows(r.a, r.b, r.k)[r.k - 1];
 
-	if (w.tempoShift !== r.shift || r.charged !== r.turn || !r.logged || r.logged.rho !== w.rho || r.logged.turn !== r.turn) {
+	// EXPECT_OFFSET lets you run this against an older engine: 2 for the current system, 1 for the one before Aug 2026
+	const expected = OFFSET === 2 ? w.tempoShift : w.rho - OFFSET;
+
+	if (expected !== r.shift || r.charged !== r.turn || !r.logged || r.logged.rho !== w.rho || r.logged.turn !== r.turn) {
 		bad++;
-		console.log('MISMATCH', JSON.stringify(r), 'model', w.tempoShift);
+		console.log('MISMATCH', JSON.stringify(r), 'expected', expected, 'rho', w.rho);
 	}
 }
 
