@@ -17,7 +17,9 @@ const MAX_MS = parseInt(process.env.MAX_MS || '170000', 10);
 const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
 const page = await browser.newPage({ viewport: { width: 1000, height: 1250 } });
 const errors = [];
+const debugLines = [];
 page.on('pageerror', e => errors.push(e.message));
+page.on('console', m => { if (m.type() === 'log' && /^\d+\t:\t/.test(m.text())) debugLines.push(m.text()); });
 await page.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, r => r.abort());
 await page.goto(SITE + 'train/', { waitUntil: 'load' });
 await page.waitForTimeout(2500);
@@ -29,13 +31,21 @@ await page.waitForTimeout(1200);
 // Record every coach update: the advice that was on screen during the previous turn, and each side's taps
 await page.evaluate(() => {
 	window.__rec = [];
+	// Capture the battle so its decision log can be read afterwards
+	const start = Coach.start;
+	Coach.start = function (b) {
+		window.__battle = b;
+		b.setDebugMode(true);
+		return start.apply(this, arguments);
+	};
 	const orig = Coach.update;
 	Coach.update = function (r) {
 		window.__rec.push({
 			turn: r.turn,
 			phase: r.phase,
 			advice: $('.coach-advice').attr('class') || '',
-			taps: (r.animations || []).filter(a => a.type === 'fast').map(a => a.actor)
+			taps: (r.animations || []).filter(a => a.type === 'fast').map(a => a.actor),
+			cd: [r.pokemon[0].cooldown, r.pokemon[1].cooldown]
 		});
 		return orig.apply(this, arguments);
 	};
@@ -57,7 +67,8 @@ while (Date.now() - t0 < MAX_MS) {
 	if (phase && phase.startsWith('suspend_charged_shield')) await page.evaluate(() => $('.shield-window .close').trigger('click'));
 }
 
-const result = await page.evaluate(() => ({ rec: window.__rec, throws: Coach.getThrows() }));
+const result = await page.evaluate(() => { window.__battle.debug(); return { rec: window.__rec, throws: Coach.getThrows() }; });
+await page.waitForTimeout(500);
 await browser.close();
 
 // Taps are dispatched on the update after the turn they were made: tap turn = update turn - 1
@@ -80,8 +91,17 @@ for (const t of result.throws) {
 		// The in-flight tap is excluded: an opponent that tapped on the throw turn itself shows up at t.turn
 		if (delta !== 2) {
 			deadTurnBad++;
-			const around = result.rec.filter(r => r.turn >= t.turn - 1 && r.turn <= t.turn + 6).map(r => `[update ${r.turn} ${r.phase} taps:${r.taps.join('') || '-'}]`).join(' ');
-			lines.push(`DEAD-TURN T${t.turn}: opponent's next action at +${delta}, expected +2. Opp throws ${JSON.stringify(oppThrows)}. ${around}`);
+			// Collapse the many updates dispatched while the charge minigame is suspended into one line per phase change
+			const around = [];
+			let last = '';
+			result.rec.filter(r => r.turn >= t.turn - 1 && r.turn <= t.turn + 6).forEach(r => {
+				const row = `update ${r.turn} ${r.phase} taps:${r.taps.join('') || '-'} cd:${r.cd.join('/')}`;
+				const key = r.turn + r.phase + r.taps.join('');
+				if (key !== last) around.push(row);
+				last = key;
+			});
+			const decisions = debugLines.filter(l => { const n = parseInt(l, 10); return n >= t.turn - 1 && n <= t.turn + 5; }).slice(0, 30);
+			lines.push(`DEAD-TURN T${t.turn}: opponent's next action at +${delta}, expected +2. Opp throws ${JSON.stringify(oppThrows)}.\n  ${around.join('\n  ')}\n  engine decisions:\n  ${decisions.join('\n  ') || '(none captured)'}`);
 		}
 	}
 
