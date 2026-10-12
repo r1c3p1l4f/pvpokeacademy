@@ -37,7 +37,7 @@ Feel free to copy the `Ranker.js` or `RankerOverall.js` files and experiment wit
 
 The Academy adds counting and move timing practice on top of the simulator. Everything lives in `src/js/academy` and `src/academy`.
 
-- **Coach (Train).** Pick a Coach mode on the Train setup page. *Learn* shows both Pokemon's energy, the Fast Moves left to each Charged Move, and a "throw now / tap again" prompt. *Count* shows your energy and only a raw count of the opponent's taps, so you do the counting. *Review* stays quiet and grades afterward. Every Charged Move, yours and theirs, is graded as it happens, and the end screen has a Timing tab.
+- **Coach (Train).** Pick a Coach mode on the Train setup page. *Learn* shows both Pokemon's energy, the Fast Moves left to each Charged Move, and a prompt that comes from the simulator's own logic (`ActionLogic.decideAction`, the code that decides when the Battle page's simulated Pokemon throw): throw now, tap N more first, or hold with the engine's reason (better timing, saving for a bigger move, baiting a shield). The coach adds no throw policy of its own. *Count* shows your energy and only a raw count of the opponent's taps, so you do the counting. *Review* stays quiet and grades afterward. Every Charged Move, yours and theirs, is graded as it happens, and the end screen has a Timing tab.
 - **Energy & Timing (Battle).** Under each simulated timeline: energy over time for both Pokemon, the Fast Moves between throws, a count sheet, and a grade for every Charged Move. In Sandbox Mode it updates as you place throws, so you can see what a sneak costs.
 - **Quiz and flashcards (`/academy/`).** Fast Move counting, tracking an opponent's energy from what they've done, throw timing (including "I run a 5-turn move, they run a 3-turn move, when can I throw?"), and stay-or-swap scenarios for ABA, ABB and ABC teams. Missed cards come back until you get them right a few times in a row. Progress is stored in the browser only.
 
@@ -56,6 +56,10 @@ This is how PvPoke's battle engine models the game, not something independently 
 The `rho - 2` rule follows the simulator as updated for Niantic's June 2026 Trainer Battle rebuild. Before the commits of Aug 23-26, 2026 the engine reset both cooldowns to 0 after a Charged Move (both Pokemon resumed the next turn, giving `rho - 1`); it now adds a one turn delay "to resolve Fast Attack damage". The maintainer noted the Charged Attack start delay was reverted "for now", so this is the simulator's current approximation of the game, not a verification against it. The older Fast Move guide on the site still describes the previous system.
 
 This was measured against `Battle.js` rather than assumed. `tests/academy/engine-check.mjs` forces a throw on every opportunity for every pair of 1 to 5 turn Fast Moves and compares the engine's result with `TurnMath`.
+
+### Where the live prompts come from
+
+The Coach asks the engine rather than re-implementing it. At each of your action turns it hands `decideAction` the state it would see (cooldowns, energy and HP projected to that turn, restored afterward) and reads the answer and its reason from the engine's decision log. The "tap N more" countdown asks again after advancing your own Fast Moves, up to two. Checked in live battles with `tests/academy/advice-check.mjs`: when the player was tapping, the countdown was right 13 of 14 times, and the engine never said "throw" where the old coach model said "wait". Where the engine holds and the old model threw, the engine's reasons were timing, baiting, farming or saving for a bigger move. Two things still use the coach's own `TurnMath`: grading each throw after the fact and the "next time, tap N more" suggestion that goes with it, and the Academy quizzes. `engine-check.mjs` pins `TurnMath` to the engine, and `live-check.mjs` verifies the dead-turn rule from the engine's own step log (`Battle.getStepLog`).
 
 ### Stay or swap
 
