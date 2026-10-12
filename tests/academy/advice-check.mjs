@@ -74,6 +74,9 @@ while (Date.now() - t0 < MAX_MS) {
 	await page.waitForTimeout(800);
 	const phase = await page.getAttribute('.battle-window', 'phase');
 	if (phase === 'game_over_screen') break;
+	// Keep autotap on: without taps there are no real boundaries to compare, only idle updates
+	const tapping = await page.evaluate(() => $('.auto-tap').hasClass('active'));
+	if (!tapping && phase === 'neutral') { await page.hover('.auto-tap'); await page.mouse.down(); await page.mouse.up(); }
 	// Dismiss anything that needs an answer so the battle keeps moving, but never throw
 	if (phase && phase.startsWith('suspend_charged_shield')) await page.evaluate(() => $('.shield-window .close').trigger('click'));
 }
@@ -97,7 +100,7 @@ for (const r of live) {
 }
 
 // Badge hit rate: when the badge said N, N boundaries later the engine should say GO (same matchup, no opponent throw between)
-let badgeChecked = 0, badgeHit = 0, projChecked = 0;
+let badgeChecked = 0, badgeHit = 0, projChecked = 0, idlePairs = 0;
 const projOff = {}, projExamples = [];
 const misses = [];
 
@@ -106,6 +109,7 @@ for (let i = 0; i < live.length; i++) {
 	if (!r.engine || !(r.engine.taps >= 1)) continue;
 	const later = rows[rows.indexOf(r) + r.engine.taps];
 	if (!later || later.who !== r.who || later.throws !== r.throws || !later.ready) continue;
+	if (later.turn - r.turn < r.engine.taps * r.fast[0]) { idlePairs++; continue; } // not enough time passed: the player wasn't tapping
 	badgeChecked++;
 	// Compare what was projected for `taps` more Fast Moves with what the same function computes from the real state at that later boundary
 	if (r.engine.proj && later.engine && later.engine.proj) {
@@ -132,7 +136,7 @@ badText.slice(0, 3).forEach(r => console.log('  malformed: ' + r.engine.text));
 const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : 'n/a';
 console.log(`boundaries recorded: ${rows.length}, with a Charged Move affordable: ${live.length}`);
 console.log(`engine vs old TurnMath model on "throw now" vs "hold": ${agree}/${both} agree (${pct(agree, both)}); engine says GO but old says wait: ${engineGoOldWait}; engine holds but old says throw: ${engineHoldOldThrow}`);
-console.log(`tap countdown hit rate: ${badgeHit}/${badgeChecked} (${pct(badgeHit, badgeChecked)})`);
+console.log(`tap countdown hit rate: ${badgeHit}/${badgeChecked} (${pct(badgeHit, badgeChecked)}); ${idlePairs} pairs skipped because the player wasn't tapping`);
 console.log(`projection vs reality (${projChecked} compared), fields that differed: ${JSON.stringify(projOff)}`);
 projExamples.forEach(e => console.log('  ' + e));
 misses.slice(0, 6).forEach(m => console.log('  miss ' + m));
