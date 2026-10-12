@@ -246,7 +246,7 @@ var TimelineAudit = (function () {
 			});
 
 			$body.append(table + '</tbody></table>');
-			$body.append('<p class="audit-note">Opp. cooldown is how many turns the other side had left on its Fast Move when the Charged Move was thrown. 1 means it was on its last turn (perfect), 2 costs nothing, and anything higher hands them free turns. <a href="' + webRoot + 'articles/strategy/guide-to-fast-move-registration/">Read the guide</a>.</p>');
+			$body.append('<p class="audit-note">Opp. cooldown is how many turns the other side had left on its Fast Move when the Charged Move was thrown. 1 means it was on its last turn (perfect), 2 costs nothing, and anything higher hands them free turns. The <a href="' + webRoot + 'articles/strategy/guide-to-fast-move-registration/">Fast Move guide</a> predates the 2026 battle system update, so its free-turn counts run one higher than these.</p>');
 		}
 
 		$body.append('<h4>Count sheet</h4>');

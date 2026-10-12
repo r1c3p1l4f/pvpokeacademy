@@ -53,6 +53,8 @@ This is how PvPoke's battle engine models the game, not something independently 
 | 4 or more | Bad |
 | Their full move length | Sneak. They tapped on your throw turn |
 
+The `rho - 2` rule follows the simulator as updated for Niantic's June 2026 Trainer Battle rebuild. Before the commits of Aug 23-26, 2026 the engine reset both cooldowns to 0 after a Charged Move (both Pokemon resumed the next turn, giving `rho - 1`); it now adds a one turn delay "to resolve Fast Attack damage". The maintainer noted the Charged Attack start delay was reverted "for now", so this is the simulator's current approximation of the game, not a verification against it. The older Fast Move guide on the site still describes the previous system.
+
 This was measured against `Battle.js` rather than assumed. `tests/academy/engine-check.mjs` forces a throw on every opportunity for every pair of 1 to 5 turn Fast Moves and compares the engine's result with `TurnMath`.
 
 ### Stay or swap

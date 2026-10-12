@@ -32,7 +32,7 @@ require_once '../header.php';
 				<tr><td>3 or more</td><td><b>Leak.</b> They get (turns left &minus; 2) free turns. Their full length means they just tapped, a <b>sneak</b>.</td></tr>
 			</tbody>
 		</table>
-		<p>Same-length or evenly dividing moves (3 vs 3, 2 vs 4, anything vs a 1-turn move) stay in step, so you can't improve timing there. Read the full <a href="<?php echo $WEB_ROOT; ?>articles/strategy/guide-to-fast-move-registration/">Fast Move guide</a>.</p>
+		<p>Same-length or evenly dividing moves (3 vs 3, 2 vs 4, anything vs a 1-turn move) stay in step, so you can't improve timing there. The <a href="<?php echo $WEB_ROOT; ?>articles/strategy/guide-to-fast-move-registration/">Fast Move guide</a> was written for the previous battle system, where both Pokemon resumed the turn right after a Charged Move. The free-turn counts here follow the simulator as updated for the 2026 system.</p>
 	</details>
 
 	<div class="academy-setup">
