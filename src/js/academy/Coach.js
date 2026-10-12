@@ -564,7 +564,7 @@ var Coach = (function () {
 
 		// Judge every Charged Move on the spot, as the engine's own decision logic would see it
 		battle.setThrowObserver(function (poke, opp, move, snapshot) {
-			return mode === "off" ? null : EngineAdvisor.review(poke, opp, move, snapshot);
+			return mode === "off" ? null : EngineAdvisor.review(poke, opp, move, snapshot, { coachDefaults: poke.index === 0 });
 		});
 
 		if (!panel) {

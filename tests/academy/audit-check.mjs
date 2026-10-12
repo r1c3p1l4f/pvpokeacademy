@@ -16,25 +16,29 @@ const errors = [];
 page.on('pageerror', e => errors.push(e.message));
 await page.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, r => r.abort());
 
-let rows = 0, explained = 0, panels = 0;
-const sample = [];
+let panels = 0;
 
-for (const url of ['battle.php?cp=1500&cup=all&p1=medicham&p2=talonflame&s1=2&s2=2', 'battle.php?cp=1500&cup=all&p1=azumarill&p2=registeel&s1=2&s2=2', 'battle.php?cp=1500&cup=all&p1=sableye&p2=swampert&s1=1&s2=1']) {
+// AI-vs-AI battles throw where the engine would throw, so they give no explanation rows (and must not error).
+for (const url of ['battle.php?cp=1500&cup=all&p1=azumarill&p2=registeel&s=22', 'battle.php?cp=1500&cup=all&p1=sableye&p2=swampert&s=11']) {
 	await page.goto(SITE + url, { waitUntil: 'load' });
 	await page.waitForTimeout(2500);
-	if (!(await page.isVisible('.timing-audit'))) continue;
-	panels++;
-	const found = await page.evaluate(() => $('.audit-table.throws tr.explain').map((i, tr) => $(tr).text()).get());
-	rows += found.length;
-	for (const text of found) {
-		if (/simulator/i.test(text)) explained++;
-		if (sample.length < 4) sample.push(text.trim());
-	}
+	if (await page.isVisible('.timing-audit')) panels++;
 }
 
+// Sandbox: Medicham starts with 50 energy and throws Ice Punch on turn 3 while Talonflame is mid Fast Move.
+// That throw leaks a free turn, and the engine (move timing on) would have held, so both must be on screen.
+await page.goto(SITE + 'battle.php?cp=1500&cup=all&p1=medicham&p2=talonflame&s=22&e=50-0&sandbox=1&a=3.10000', { waitUntil: 'load' });
+await page.waitForTimeout(3500);
+const rows = await page.evaluate(() => $('.audit-table.throws tr.explain').map((i, tr) => $(tr).text().replace(/\s+/g, ' ').trim()).get());
+const headline = await page.evaluate(() => $('.audit-headline').text());
 await browser.close();
-console.log(`panels shown ${panels}/3; leaky throw rows ${rows}, with a simulator sentence ${explained}`);
-sample.forEach(t => console.log('  ' + t));
-assert.ok(panels >= 1, 'the Energy & Timing panel never rendered');
+console.log(`AI battles with a panel: ${panels}/2`);
+console.log('sandbox headline: ' + headline);
+rows.forEach(t => console.log('  ' + t));
+assert.equal(panels, 2, 'the Energy & Timing panel did not render for AI battles');
+assert.equal(rows.length, 1, 'expected one explanation row for the sandbox throw');
+assert.match(rows[0], /free turn/);
+assert.match(rows[0], /The simulator would have held here\./);
+assert.match(rows[0], /after 1 more tap/);
 assert.equal(errors.length, 0, errors.join(' | '));
 console.log('Audit checks passed');

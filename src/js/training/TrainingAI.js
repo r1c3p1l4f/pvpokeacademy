@@ -1122,7 +1122,9 @@ function TrainingAI(l, p, b){
 			// Perform overfarm
 			if(Math.floor((Math.random() * overfarmChance)) > 0){
 				action = new TimelineAction("fast", poke.index, turn, 0, {priority: poke.priority});
-				overfarming = true;
+
+				// Only counts as holding back when a Charged Move was actually affordable
+				overfarming = poke.chargedMoves.some(function(m){ return poke.energy >= m.energy; });
 			}
 		}
 

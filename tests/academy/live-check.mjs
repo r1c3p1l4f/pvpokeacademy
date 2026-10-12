@@ -149,8 +149,14 @@ for (const t of result.throws) {
 	}
 }
 
-const plans = [...new Set(rec.map(r => r.plan).filter(Boolean))];
-console.log(`opponent plan lines seen: ${plans.length}`); plans.forEach(p => console.log('  ' + p));
+// Plan lines in order with their first and last turn, so a plan that outlives its Pokemon would show
+const planRuns = [];
+for (const r of rec) {
+	const last = planRuns[planRuns.length - 1];
+	if (last && last.plan === r.plan) last.to = r.turn; else planRuns.push({ plan: r.plan, from: r.turn, to: r.turn });
+}
+console.log(`opponent plan runs: ${planRuns.filter(r => r.plan).length}`);
+planRuns.filter(r => r.plan).forEach(r => console.log(`  T${r.from}-T${r.to}: ${r.plan.slice(0, 110)}`));
 console.log(`throws ${result.throws.length}; ordinary dead-turn checks ${deadTurnChecked}, mismatches ${deadTurnBad}; sneak throws (total/decided steps): ${JSON.stringify(sneakSeen)}; skipped ${skipped}; advice checks ${adviceChecked} (${engineChecked} with an engine verdict), mismatches ${adviceBad}`);
 lines.filter(l => l.startsWith('ADVICE')).forEach(l => console.log(l));
 if (lines.some(l => l.startsWith('DEAD-TURN'))) console.log('(dead-turn step counts differed from 2 in ' + deadTurnBad + ' ordinary throw(s); informational, see the comment at the top of this file)');

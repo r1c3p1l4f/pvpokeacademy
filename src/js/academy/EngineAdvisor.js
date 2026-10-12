@@ -113,11 +113,13 @@
 	* Judge a throw as it happens. Called from Battle's throw observer, when the live Pokemon are in the state the
 	* decision was made on. Only the two cooldowns need patching, since by now they include this turn's taps; they come
 	* from the snapshot Battle took before anyone decided. Nothing else is touched, so buffs, form, shields and the
-	* active Charged Moves are exactly what the engine saw. The Pokemon's own settings are left alone too: this is the
-	* engine's verdict for this Pokemon as configured.
+	* active Charged Moves are exactly what the engine saw. The Pokemon's own settings are left alone unless
+	* options.coachDefaults is set, which uses the same timing-on, farm-off assumptions as the live prompt so the two can't
+	* disagree on settings. The Pokemon's Bait Shields setting is never overridden.
 	* Returns the engine's answer plus whether it matches what was thrown.
 	*/
-	function review(poke, opp, move, snapshot) {
+	function review(poke, opp, move, snapshot, options) {
+		var coachDefaults = !!(options && options.coachDefaults);
 		var answer = ask(poke, opp, {
 			meCooldown: snapshot.cooldowns[poke.index],
 			oppCooldown: snapshot.cooldowns[opp.index]
@@ -125,7 +127,7 @@
 			turns: snapshot.turn,
 			mode: snapshot.mode,
 			queuedFast: snapshot.queuedFast[poke.index],
-			coachDefaults: false
+			coachDefaults: coachDefaults
 		});
 
 		answer.thrownIndex = poke.chargedMoves.indexOf(move);
@@ -134,7 +136,7 @@
 
 		// If the engine would have held, how many more Fast Moves until it would throw? (at most 2)
 		if (answer.action === -1) {
-			answer.waitTaps = tapsUntilThrow(poke, opp, snapshot, 2);
+			answer.waitTaps = tapsUntilThrow(poke, opp, snapshot, 2, coachDefaults);
 		}
 
 		return answer;
@@ -145,7 +147,7 @@
 	* advanced (see projectState); the decision is always the engine's. The cooldowns are put into their post-decision
 	* form for the hypothetical tap, and everything is restored afterward.
 	*/
-	function tapsUntilThrow(poke, opp, snapshot, maxTaps) {
+	function tapsUntilThrow(poke, opp, snapshot, maxTaps, coachDefaults) {
 		var saved = { p: poke.cooldown, o: opp.cooldown };
 		var theirCooldownBefore = snapshot.cooldowns[opp.index];
 
@@ -165,7 +167,7 @@
 					turns: snapshot.turn,
 					mode: snapshot.mode,
 					queuedFast: snapshot.queuedFast[poke.index],
-					coachDefaults: false
+					coachDefaults: !!coachDefaults
 				});
 
 				if (later.action > -1) {

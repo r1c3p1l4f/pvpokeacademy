@@ -240,7 +240,8 @@ var TimelineAudit = (function () {
 				table += '<tr class="' + css + ' actor-' + t.actor + '"><td>' + t.turn + '</td><td>' + esc(t.pokeName) + '</td><td>' + esc(t.moveName) + '</td><td>' + t.rho + '</td>' +
 					'<td><span class="chip ' + css + '">' + label + '</span></td><td>' + t.freeTurns + '</td></tr>';
 
-				if (!t.good && !t.simultaneous) {
+				// Leaky throws always get a row; a clean one only when the simulator would have held anyway
+				if ((!t.good || note) && !t.simultaneous) {
 					table += '<tr class="explain ' + css + '"><td></td><td colspan="5">' + esc(TimingFeedback.describe(t)) + ' ' + esc(note) + '</td></tr>';
 				}
 			});
