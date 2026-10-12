@@ -71,12 +71,18 @@ for (const t of result.throws) {
 	if (t.simultaneous) continue;
 	// Only your throws are checked: the opponent AI taps deterministically, while your own taps come from
 	// autotap and real-time input, which jitter by a turn or two and say nothing about the engine.
-	const next = t.actor === 0 ? tapsBy[1].find(x => x > t.turn) : undefined;
-	if (next !== undefined) {
+	// The opponent's first action after your throw is a tap or a Charged Move of its own
+	const oppThrows = result.throws.filter(x => x.actor === 1).map(x => x.turn);
+	const nextAction = t.actor === 0 ? [...tapsBy[1], ...oppThrows].filter(x => x > t.turn).sort((a, b) => a - b)[0] : undefined;
+	if (nextAction !== undefined) {
 		deadTurnChecked++;
-		const delta = next - t.turn;
+		const delta = nextAction - t.turn;
 		// The in-flight tap is excluded: an opponent that tapped on the throw turn itself shows up at t.turn
-		if (delta !== 2) { deadTurnBad++; lines.push(`DEAD-TURN T${t.turn} actor ${t.actor}: next tap after throw at +${delta}, expected +2`); }
+		if (delta !== 2) {
+			deadTurnBad++;
+			const around = result.rec.filter(r => r.turn >= t.turn - 1 && r.turn <= t.turn + 6).map(r => `[update ${r.turn} ${r.phase} taps:${r.taps.join('') || '-'}]`).join(' ');
+			lines.push(`DEAD-TURN T${t.turn}: opponent's next action at +${delta}, expected +2. Opp throws ${JSON.stringify(oppThrows)}. ${around}`);
+		}
 	}
 
 	if (t.actor === 0) {
