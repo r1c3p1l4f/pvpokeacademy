@@ -105,10 +105,12 @@ test('adviseThrow recommends waiting only when it helps and is safe', () => {
 	assert.equal(adv.action, 'throw');
 	assert.match(adv.reason, /wastes/);
 
-	// A danger of fainting blocks the wait
-	adv = TM.adviseThrow({ a: 2, b: 5, myCd: 0, oppCd: 5, energy: 60, gain: 8, cost: 55, maxWait: 3,
-		danger: { hp: 3, oppFastDamage: 5, oppDuration: 5 } });
+	// A Fast Move that would knock you out before the window blocks the wait (their 2-turn move registers next turn)
+	const slow = { a: 3, b: 4, myCd: 0, oppCd: 4, energy: 40, gain: 4, cost: 35, maxWait: 3 };
+	assert.equal(TM.adviseThrow(slow).action, 'wait');
+	adv = TM.adviseThrow(Object.assign({}, slow, { danger: { hp: 5, oppFastDamage: 5, oppDuration: 4 } }));
 	assert.equal(adv.action, 'throw');
+	assert.match(adv.reason, /knocked out/);
 
 	// Already good: throw
 	adv = TM.adviseThrow({ a: 2, b: 5, myCd: 0, oppCd: 2, energy: 60, gain: 8, cost: 55 });
@@ -138,4 +140,29 @@ test('adviseThrow will not wait into a Charged Move that could knock you out', (
 	const adv = TM.adviseThrow(Object.assign({}, base, { danger: { hp: 50, oppFastDamage: 5, oppDuration: 5, oppBurst: 60 } }));
 	assert.equal(adv.action, 'throw');
 	assert.match(adv.reason, /knocked out/);
+});
+
+test('landingsBefore counts Fast Moves that register before the throw turn only', () => {
+	// They just tapped a 5-turn move (cd 5): it registers when cd hits 1, 4 turns from now
+	assert.equal(TM.landingsBefore(5, 5, 4), 0);   // registers on turn 4 itself: not before
+	assert.equal(TM.landingsBefore(5, 5, 5), 1);
+	// next tap at turn 5 registers at turn 9
+	assert.equal(TM.landingsBefore(5, 5, 9), 1);
+	assert.equal(TM.landingsBefore(5, 5, 10), 2);
+	// 1-turn move registers every turn it's tapped
+	assert.equal(TM.landingsBefore(1, 1, 4), 3);
+	// move that registers this turn (cd 1) is already behind us
+	assert.equal(TM.landingsBefore(1, 3, 2), 0);
+});
+
+test('a lethal Fast Move landing on the throw turn does not block waiting for that window', () => {
+	// 5-turn opponent just tapped. Waiting lands you on a perfect throw as their move registers on that very turn.
+	const adv = TM.adviseThrow({ a: 2, b: 5, myCd: 0, oppCd: 5, energy: 60, gain: 8, cost: 55, maxWait: 3,
+		danger: { hp: 5, oppFastDamage: 5, oppDuration: 5, oppBurst: 0 } });
+	// The first good window has their move registering at the throw turn, which the Charged Move beats
+	assert.equal(adv.action, 'wait');
+	// but a fatal landing strictly before the window still blocks it
+	const blocked = TM.adviseThrow({ a: 5, b: 2, myCd: 0, oppCd: 1, energy: 60, gain: 4, cost: 35, maxWait: 3,
+		danger: { hp: 5, oppFastDamage: 5, oppDuration: 2, oppBurst: 0 } });
+	assert.equal(blocked.action, 'throw');
 });

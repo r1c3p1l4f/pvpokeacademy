@@ -168,6 +168,28 @@
 		return Math.max(rho, 1) - 2;
 	}
 
+	/*
+	* How many of the opponent's Fast Moves register strictly before a turn `ahead` turns from now, if they keep tapping.
+	* A Fast Move that registers on the throw turn itself isn't counted: the Charged Move resolves first, so even a
+	* fatal Fast Move landing that turn doesn't stop it. cd is their cooldown now in turns, b their move length.
+	*/
+	function landingsBefore(cd, b, ahead) {
+		var count = 0;
+		var nextTap = Math.max(cd, 1);
+
+		// A move already in flight registers when its cooldown reaches 1
+		if (cd >= 2 && cd - 1 < ahead) {
+			count++;
+		}
+
+		// Moves tapped from nextTap onward register b - 1 turns after the tap
+		for (var tap = nextTap; tap + b - 1 < ahead; tap += b) {
+			count++;
+		}
+
+		return count;
+	}
+
 	// Turns of waiting the opponent skips if you throw when they have rho cooldown turns left
 	function freeTurns(rho) {
 		return Math.max(0, tempoShift(rho));
@@ -319,11 +341,11 @@
 		}
 
 		if (opts.danger) {
-			var landings = Math.floor((target.turn - now.turn + opts.danger.oppDuration - 1) / opts.danger.oppDuration);
+			// Fast Moves that register before the throw turn count, plus any Charged Move they could have ready by then
+			var landings = landingsBefore(opts.oppCd, opts.b, target.turn);
 
-			// A Charged Move they could have ready by then counts too (0 when you have a shield to absorb it)
 			if (landings * opts.danger.oppFastDamage + (opts.danger.oppBurst || 0) >= opts.danger.hp) {
-				result.reason = "Waiting " + target.j + " Fast Move(s) could get you knocked out first.";
+				result.reason = "Waiting " + target.j + " Fast Move(s) could get you knocked out before you throw.";
 				return result;
 			}
 		}
@@ -358,6 +380,7 @@
 		race: race,
 		energyPerTurn: energyPerTurn,
 		projectRho: projectRho,
+		landingsBefore: landingsBefore,
 		cdBefore: cdBefore,
 		tempoShift: tempoShift,
 		freeTurns: freeTurns,
