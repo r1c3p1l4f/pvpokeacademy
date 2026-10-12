@@ -55,7 +55,8 @@ await page.evaluate(() => {
 			window.__rows.push({
 				turn: r.turn, who: me.speciesName + '|' + opp.speciesName, throws: Coach.getThrows().filter(t => t.actor === 1).length,
 				energy: me.energy, ready: ready.length > 0,
-				engine: adv ? { css: adv.css, badge: adv.badge, taps: adv.taps, kind: adv.kind, text: adv.text, short: adv.short } : null, old
+				engine: adv ? { css: adv.css, badge: adv.badge, taps: adv.taps, kind: adv.kind, text: adv.text, short: adv.short, proj: adv.proj } : null, old,
+				fast: [me.fastMove.turns, opp.fastMove.turns], cds: [me.cooldown, opp.cooldown]
 			});
 		}
 
@@ -96,7 +97,8 @@ for (const r of live) {
 }
 
 // Badge hit rate: when the badge said N, N boundaries later the engine should say GO (same matchup, no opponent throw between)
-let badgeChecked = 0, badgeHit = 0;
+let badgeChecked = 0, badgeHit = 0, projChecked = 0;
+const projOff = {}, projExamples = [];
 const misses = [];
 
 for (let i = 0; i < live.length; i++) {
@@ -105,6 +107,19 @@ for (let i = 0; i < live.length; i++) {
 	const later = rows[rows.indexOf(r) + r.engine.taps];
 	if (!later || later.who !== r.who || later.throws !== r.throws || !later.ready) continue;
 	badgeChecked++;
+	// Compare what was projected for `taps` more Fast Moves with what the same function computes from the real state at that later boundary
+	if (r.engine.proj && later.engine && later.engine.proj) {
+		const want = r.engine.proj[r.engine.taps], got = later.engine.proj[0];
+		if (want && got) {
+			projChecked++;
+			for (const f of Object.keys(want)) {
+				if (Math.round(want[f]) !== Math.round(got[f])) projOff[f] = (projOff[f] || 0) + 1;
+			}
+			if (Object.keys(want).some(f => Math.round(want[f]) !== Math.round(got[f])) && projExamples.length < 4) {
+				projExamples.push(`T${r.turn}->T${later.turn} fast ${r.fast.join('v')}: projected ${JSON.stringify(want)} actual ${JSON.stringify(got)}`);
+			}
+		}
+	}
 	if (later.engine && later.engine.css === 'go') badgeHit++;
 	else misses.push(`T${r.turn}: badge ${r.engine.badge} -> T${later.turn} said ${later.engine ? later.engine.badge : 'none'}`);
 }
@@ -118,6 +133,8 @@ const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : 'n/a';
 console.log(`boundaries recorded: ${rows.length}, with a Charged Move affordable: ${live.length}`);
 console.log(`engine vs old TurnMath model on "throw now" vs "hold": ${agree}/${both} agree (${pct(agree, both)}); engine says GO but old says wait: ${engineGoOldWait}; engine holds but old says throw: ${engineHoldOldThrow}`);
 console.log(`tap countdown hit rate: ${badgeHit}/${badgeChecked} (${pct(badgeHit, badgeChecked)})`);
+console.log(`projection vs reality (${projChecked} compared), fields that differed: ${JSON.stringify(projOff)}`);
+projExamples.forEach(e => console.log('  ' + e));
 misses.slice(0, 6).forEach(m => console.log('  miss ' + m));
 console.log(errors.length ? 'ERRORS: ' + errors.join(' | ') : 'no page errors');
 process.exit(errors.length || badText.length ? 1 : 0);

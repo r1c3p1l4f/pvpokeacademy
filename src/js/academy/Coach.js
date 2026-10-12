@@ -257,7 +257,8 @@ var Coach = (function () {
 		}
 
 		try {
-			var now = askEngine(me, opp, projectState(me, opp, 0));
+			var proj = [projectState(me, opp, 0)];
+			var now = askEngine(me, opp, proj[0]);
 
 			if (now.action > -1) {
 				var move = me.chargedMoves[now.action];
@@ -270,7 +271,8 @@ var Coach = (function () {
 					button: now.action,
 					source: "engine",
 					kind: "go",
-					taps: 0
+					taps: 0,
+					proj: proj
 				};
 			}
 
@@ -283,6 +285,8 @@ var Coach = (function () {
 
 			for (var taps = 1; taps <= 2; taps++) {
 				var future = projectState(me, opp, taps);
+
+				proj.push(future);
 
 				if (future.meHp <= 0) {
 					break;
@@ -299,7 +303,8 @@ var Coach = (function () {
 						button: later.action,
 						source: "engine",
 						kind: why.kind,
-						taps: taps
+						taps: taps,
+						proj: proj
 					};
 				}
 			}
@@ -312,7 +317,8 @@ var Coach = (function () {
 				button: -1,
 				source: "engine",
 				kind: why.kind,
-				taps: null
+				taps: null,
+				proj: proj
 			};
 		} catch (e) {
 			if (!engineWarned) {
