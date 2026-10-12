@@ -117,6 +117,25 @@ var Coach = (function () {
 	// ---------- Live advice ----------
 
 	/*
+	* Damage of the hardest Charged Move the opponent could throw within the wait we'd recommend (up to `waits` extra
+	* Fast Moves of ours). A shield soaks it down to 1. Mirrors the "don't optimize timing if they can KO us" bail-outs in ActionLogic.
+	*/
+	function oppBurst(me, opp, waits) {
+		var turns = (waits + 1) * me.fastMove.turns + 1;
+		var landings = Math.ceil(turns / opp.fastMove.turns);
+		var energy = Math.min(TurnMath.MAX_ENERGY, opp.energy + landings * opp.fastMove.energyGain);
+		var burst = 0;
+
+		opp.chargedMoves.forEach(function (m) {
+			if (energy >= m.energy) {
+				burst = Math.max(burst, me.shields > 0 ? 1 : safeDamage(opp, me, m));
+			}
+		});
+
+		return burst;
+	}
+
+	/*
 	* What should the player do next turn? Returns {css, text} or null.
 	*/
 	function computeAdvice(me, opp) {
@@ -147,7 +166,7 @@ var Coach = (function () {
 			gain: me.fastMove.energyGain,
 			cost: move.energy,
 			maxWait: 2,
-			danger: { hp: me.hp, oppFastDamage: safeDamage(opp, me, opp.fastMove), oppDuration: opp.fastMove.turns }
+			danger: { hp: me.hp, oppFastDamage: safeDamage(opp, me, opp.fastMove), oppDuration: opp.fastMove.turns, oppBurst: oppBurst(me, opp, 2) }
 		});
 
 		var when = adv.now.turn > 1 ? " (in " + pluralize(adv.now.turn, "turn") + ")" : "";

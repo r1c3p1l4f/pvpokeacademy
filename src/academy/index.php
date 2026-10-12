@@ -23,7 +23,7 @@ require_once '../header.php';
 
 	<details class="cheat-sheet">
 		<summary>Timing cheat sheet</summary>
-		<p>A Fast Move registers on its last turn. When you throw a Charged Move, the sequence takes a turn of its own and both Pokemon start fresh two turns later. What matters is how many turns your opponent has left on their Fast Move when you throw:</p>
+		<p>In PvPoke's battle model, a Fast Move registers on its last turn. When you throw a Charged Move, the sequence takes a turn of its own and both Pokemon start fresh two turns later. What matters is how many turns your opponent has left on their Fast Move when you throw:</p>
 		<table class="stats-table cheat-table" cellspacing="0">
 			<thead><tr><td>Turns left on their move</td><td>What happens</td></tr></thead>
 			<tbody>

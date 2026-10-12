@@ -68,7 +68,7 @@
 				gain: entry.myFastGain,
 				cost: entry.cost,
 				maxWait: 2,
-				danger: { hp: entry.hp, oppFastDamage: entry.oppFastDamage, oppDuration: entry.oppFastTurns }
+				danger: { hp: entry.hp, oppFastDamage: entry.oppFastDamage, oppDuration: entry.oppFastTurns, oppBurst: 0 }
 			});
 		}
 
@@ -85,6 +85,8 @@
 
 		if (t.actor === 0) {
 			switch (t.grade) {
+				case "idle":
+					return t.moveName + ": " + t.oppName + " wasn't in the middle of a Fast Move, so they lost a turn.";
 				case "perfect":
 					return t.moveName + ": perfect. " + t.oppFastName + " was on its last turn, so " + t.oppName + " lost a turn.";
 				case "good":
@@ -119,7 +121,7 @@
 	}
 
 	function tally(list) {
-		var counts = { perfect: 0, good: 0, minor: 0, bad: 0, sneak: 0 };
+		var counts = { idle: 0, perfect: 0, good: 0, minor: 0, bad: 0, sneak: 0 };
 		var free = 0;
 		var energy = 0;
 		var damage = 0;
@@ -134,7 +136,7 @@
 		return {
 			total: list.length,
 			counts: counts,
-			clean: counts.perfect + counts.good,
+			clean: counts.idle + counts.perfect + counts.good,
 			freeTurns: free,
 			energy: round1(energy),
 			damage: round1(damage)

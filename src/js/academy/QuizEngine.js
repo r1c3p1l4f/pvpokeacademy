@@ -623,12 +623,12 @@
 			var good = rows.filter(function (w) { return w.good; }).map(function (w) { return String(w.k); });
 
 			return {
-				prompt: "You use a " + turnAdj(p.a) + " Fast Move. Your opponent uses a " + turnAdj(p.b) + " Fast Move. You both tap on the same turn. If you throw after k of your Fast Moves, which values of k give them no free turns? Select all that apply.",
+				prompt: "You use a " + turnAdj(p.a) + " Fast Move. Your opponent uses a " + turnAdj(p.b) + " Fast Move. You both tap on the same turn. If you throw after k of your Fast Moves, which values of k give them no free turns? Select all that apply. (The Battle page's Optimal Move Timing lists only the perfect, last-turn throws, which are a subset of these.)",
 				input: { kind: "multi", options: rows.map(function (w) { return { id: String(w.k), label: "k = " + w.k }; }) },
 				answer: good,
 				explain: rows.map(function (w) {
 					return "k=" + w.k + " (turn " + (1 + w.turn) + "): they have " + w.rho + " turn" + (w.rho === 1 ? "" : "s") + " left, " + (w.freeTurns === 0 ? "no free turns" : turnWord(w.freeTurns) + " free" + (w.sneak ? ", a sneak" : ""));
-				}).join(". ") + ". Throwing with 1 or 2 turns left on their move costs nothing; 1 is best because they lose a turn.",
+				}).join(". ") + ". Throwing with 1 or 2 turns left on their move costs nothing; 1 is best because they lose a turn. The perfect ones are k = " + (TurnMath.perfectCounts(p.a, p.b, 4, true).filter(function (k) { return k <= 8; }).join(", ") || "none") + ".",
 				visual: { type: "timing", a: p.a, b: p.b, k: good.length ? parseInt(good[0], 10) : 1 }
 			};
 		}

@@ -122,3 +122,20 @@ test('leakValue converts free turns to opponent energy and damage', () => {
 	assert.equal(v.energy, 4.5);
 	assert.equal(v.damage, 4);
 });
+
+test('an opponent with no Fast Move in flight (rho 0) is graded idle, not perfect', () => {
+	const g = TM.gradeThrow(0, 5);
+	assert.equal(g.grade, 'idle');
+	assert.equal(g.freeTurns, 0);
+	assert.equal(g.tempoShift, -1);
+});
+
+test('adviseThrow will not wait into a Charged Move that could knock you out', () => {
+	const base = { a: 2, b: 5, myCd: 0, oppCd: 5, energy: 60, gain: 8, cost: 55, maxWait: 3 };
+	// Safe against Fast Moves alone...
+	assert.equal(TM.adviseThrow(Object.assign({}, base, { danger: { hp: 50, oppFastDamage: 5, oppDuration: 5, oppBurst: 0 } })).action, 'wait');
+	// ...but not if they could also have a 60 damage Charged Move ready
+	const adv = TM.adviseThrow(Object.assign({}, base, { danger: { hp: 50, oppFastDamage: 5, oppDuration: 5, oppBurst: 60 } }));
+	assert.equal(adv.action, 'throw');
+	assert.match(adv.reason, /knocked out/);
+});

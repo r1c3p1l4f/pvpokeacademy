@@ -164,7 +164,8 @@
 
 	// How many turns earlier the opponent's next tap comes because you threw. Negative means they lose a turn.
 	function tempoShift(rho) {
-		return rho - 2;
+		// With no Fast Move in flight (rho 0) they would have tapped next turn, so the dead turn costs them 1
+		return Math.max(rho, 1) - 2;
 	}
 
 	// Turns of waiting the opponent skips if you throw when they have rho cooldown turns left
@@ -174,6 +175,7 @@
 
 	/*
 	* Grade a throw. rho is the opponent's cooldown on the throw turn, b their Fast Move duration.
+	*  idle    - they had no Fast Move in flight (rho 0, e.g. just switched in): they lose a turn
 	*  perfect - last turn of their Fast Move (rho 1): it registers and they lose a turn
 	*  good    - rho 2: no free turns
 	*  minor   - 1 free turn
@@ -185,7 +187,9 @@
 		var sneak = (rho >= b) && free > 0;
 		var grade = "bad";
 
-		if (rho <= 1) {
+		if (rho <= 0) {
+			grade = "idle";
+		} else if (rho === 1) {
 			grade = "perfect";
 		} else if (free === 0) {
 			grade = "good";
@@ -266,7 +270,8 @@
 	*  energy / gain - your energy and Fast Move energy
 	*  cost          - the Charged Move you plan to throw
 	*  maxWait       - most extra Fast Moves worth waiting for
-	*  danger        - optional {hp, oppFastDamage, oppDuration}: skip waiting if the opponent's Fast Moves could faint you first
+	*  danger        - optional {hp, oppFastDamage, oppDuration, oppBurst}: skip waiting if the opponent's Fast Moves, plus
+	*                  oppBurst (damage of a Charged Move they could throw by then), could faint you first
 	*/
 	function adviseThrow(opts) {
 		var windows = throwWindows({
@@ -316,7 +321,8 @@
 		if (opts.danger) {
 			var landings = Math.floor((target.turn - now.turn + opts.danger.oppDuration - 1) / opts.danger.oppDuration);
 
-			if (landings * opts.danger.oppFastDamage >= opts.danger.hp) {
+			// A Charged Move they could have ready by then counts too (0 when you have a shield to absorb it)
+			if (landings * opts.danger.oppFastDamage + (opts.danger.oppBurst || 0) >= opts.danger.hp) {
 				result.reason = "Waiting " + target.j + " Fast Move(s) could get you knocked out first.";
 				return result;
 			}

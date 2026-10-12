@@ -71,3 +71,10 @@ test('opponent throws are described from the player view', () => {
 	assert.match(TF.describe(t), /free turns? for you/);
 	assert.equal(TF.betterNext(t), '');
 });
+
+test('an idle opponent is a clean throw with its own wording', () => {
+	const t = TF.grade(entry({ oppCooldown: 0 }));
+	assert.equal(t.grade, 'idle');
+	assert.match(TF.describe(t), /wasn't in the middle of a Fast Move/);
+	assert.equal(TF.summarize([t]).you.clean, 1);
+});

@@ -43,7 +43,7 @@ The Academy adds counting and move timing practice on top of the simulator. Ever
 
 ### How timing is graded
 
-A Fast Move registers on its last turn. A Charged Move takes its own turn, then both Pokemon tap again two turns after the throw. So when you throw while the opponent has `rho` turns left on their Fast Move, their next tap comes `rho - 2` turns earlier than it would have. Positive values are "free turns" for them.
+This is how PvPoke's battle engine models the game, not something independently verified against Pokemon GO. A Fast Move registers on its last turn. A Charged Move takes its own turn, then both Pokemon tap again two turns after the throw. So when you throw while the opponent has `rho` turns left on their Fast Move, their next tap comes `rho - 2` turns earlier than it would have. Positive values are "free turns" for them.
 
 | Turns left (`rho`) | Grade |
 | --- | --- |
