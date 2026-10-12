@@ -35,7 +35,8 @@ for (const f of formats) {
 		const [cpStr, cup] = f.value.split('|');
 		const cp = parseInt(cpStr, 10);
 		const data = await new Promise(res => gm.loadRankingData({ displayRankingData: res }, 'overall', cp, cup));
-		const pool = QuizEngine.buildPool(gm.data, data, 70);
+		const info = InterfaceMaster.getInstance().getFormatInfo()[f.value] || {};
+		const pool = QuizEngine.buildPool(gm.data, data, 70, { exclude: info.exclude });
 
 		SwapScenarios.init({ pool, cp, cup });
 
@@ -65,23 +66,44 @@ for (const f of formats) {
 			}
 		}
 
-		return { poolSize: pool.length, megas: megas.length, three: three.length, loadoutBad, types: Object.keys(types).length, swap: types['swap.stayOrSwap'] || 0, swapWithMega, failures: failures.slice(0, 3), failureCount: failures.length };
+		const bannedPresent = (info.exclude || []).length ? pool.filter(p => info.exclude.some(x => x.filterType === 'id' && x.values.includes(p.id))).map(p => p.id) : [];
+		const cupData = gm.getCupById(cup);
+		// Team rules the quiz does not model: a cup with any of these would make swap questions show illegal teams
+		const KNOWN = ['name', 'title', 'include', 'exclude', 'partySize', 'levelCap', 'presetOnly', 'excludeLowPokemon', 'rankingAlias', 'league', 'link', 'overrides', 'useDefaultMovesets'];
+		const unknownRules = Object.keys(cupData || {}).filter(k => !KNOWN.includes(k));
+
+		return { bannedPresent, unknownRules, poolSize: pool.length, megas: megas.length, three: three.length, loadoutBad, types: Object.keys(types).length, swap: types['swap.stayOrSwap'] || 0, swapWithMega, failures: failures.slice(0, 3), failureCount: failures.length };
 	}, [f, QUESTIONS]);
 
 	rows.push({ ...f, ...r });
 }
 
-// The real UI path for a few formats: pick it from the menu and page through flashcards
-const uiFormats = formats.filter((f, i) => i === 0 || /mega|little/i.test(f.value)).slice(0, 4);
+// The real UI path: pick formats from the menu (including Little Cup at 500 CP and a Mega cup) and page through flashcards.
+// Each pick must actually load that format's pool: the question's Pokemon have to be in the new ranking, not left over.
+const uiFormats = formats.filter(f => /Little|Mega Great|Championship|Retro/.test(f.label));
+assert.ok(uiFormats.length >= 3, 'expected Little, Mega and a borrowed-ranking cup on the menu');
 
 for (const f of uiFormats) {
 	await page.selectOption('.academy-league', f.value);
-	await page.waitForSelector('.academy-card:not(.hide)', { timeout: 30000 });
+	await page.waitForFunction(v => localStorage.getItem('academy.settings') && JSON.parse(localStorage.getItem('academy.settings')).format === v, f.value);
+	await page.waitForTimeout(1500);
 	await page.click('.academy-modes a[data-mode="flashcards"]');
+
 	for (let i = 0; i < 6; i++) {
 		await page.waitForSelector('.reveal-btn:visible', { timeout: 15000 });
 		const q = await page.evaluate(() => InterfaceMaster.getInstance().getQuestion());
 		assert.ok(q && q.type, `no question for ${f.label}`);
+
+		const outsiders = await page.evaluate(async ([value, params]) => {
+			const gm = GameMaster.getInstance();
+			const [cp, cup] = value.split('|');
+			const data = await new Promise(res => gm.loadRankingData({ displayRankingData: res }, 'overall', parseInt(cp, 10), cup));
+			const ids = new Set(data.map(r => r.speciesId));
+			const used = JSON.stringify(params).match(/"([a-z0-9_]+)"/g) || [];
+			return used.map(x => x.replace(/"/g, '')).filter(x => gm.getPokemonById(x) && !ids.has(x));
+		}, [f.value, q.params]);
+
+		assert.equal(outsiders.length, 0, `${f.label}: question uses Pokemon outside this format's ranking: ${outsiders}`);
 		await page.click('.reveal-btn');
 		await page.click('.gotit-btn');
 	}
@@ -90,12 +112,14 @@ for (const f of uiFormats) {
 await browser.close();
 
 for (const r of rows) {
-	console.log(`${r.label.padEnd(44)} pool ${String(r.poolSize).padStart(3)}  megas ${String(r.megas).padStart(2)}  3-move ${String(r.three).padStart(2)}  swap q ${String(r.swap).padStart(2)} (${r.swapWithMega} w/ mega)  types ${r.types}  fails ${r.failureCount}`);
+	console.log(`${r.label.padEnd(44)} pool ${String(r.poolSize).padStart(3)}  megas ${String(r.megas).padStart(2)}  3-move ${String(r.three).padStart(2)}  swap q ${String(r.swap).padStart(2)} (${r.swapWithMega} w/ mega)  types ${r.types}  fails ${r.failureCount}${r.bannedPresent.length ? ' BANNED ' + r.bannedPresent : ''}${r.unknownRules.length ? ' RULES ' + r.unknownRules : ''}`);
 	r.failures.forEach(f => console.log('    ' + f));
 	r.loadoutBad.forEach(f => console.log('    LOADOUT ' + f));
 }
 
-assert.equal(rows.filter(r => r.failureCount || r.loadoutBad.length || r.poolSize < 20).length, 0, 'a format failed');
+assert.equal(rows.filter(r => r.failureCount || r.loadoutBad.length || r.poolSize < 20 || r.bannedPresent.length || r.unknownRules.length).length, 0, 'a format failed');
+assert.ok(rows.some(r => /Championship/.test(r.label)), 'P!P Championship Series should be on the menu with its own bans');
+assert.ok(rows.some(r => /Chrysalis|Retro|Classic|Fantasy/.test(r.label)), 'cups outside the formats list should be on the menu');
 assert.ok(rows.some(r => r.three > 0), 'no format exercised a three-move Mega');
 assert.equal(errors.length, 0, errors.join(' | '));
 console.log('Cup checks passed');

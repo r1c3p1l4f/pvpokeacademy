@@ -25,6 +25,11 @@ var InterfaceMaster = (function () {
 			var round = null;
 			var loadToken = 0;
 
+			// Read-only access to the per-format details (borrowed-ranking exclusions), used by the tests
+			this.getFormatInfo = function () {
+				return formatInfo;
+			};
+
 			// Read-only access to the current question, used by the UI tests
 			this.getQuestion = function () {
 				return question;
@@ -35,6 +40,9 @@ var InterfaceMaster = (function () {
 			this.init = function () {
 				progress = new QuizEngine.Progress(safeStorage());
 				loadSettings();
+
+				// Cards saved before formats existed belong to the league that was saved with them
+				progress.adoptUnscoped(((legacyLeague() || 1500) + "|all"));
 				buildCategoryChips();
 
 				$(".academy-modes a").on("click", function (e) {
@@ -140,14 +148,29 @@ var InterfaceMaster = (function () {
 				return webRoot + "data/rankings/" + dir + "/overall/rankings-" + cp + ".json?v=" + siteVersion;
 			}
 
+			var CP_NAMES = { 500: "Little", 1500: "Great", 2500: "Ultra", 10000: "Master" };
+			var formatInfo = {}; // "1500|cup" -> {exclude: [...]} for cups that borrow another cup's ranking
+
+			// Exclusion filters a cup adds on top of the cup whose ranking it borrows. Null if there are none worth modelling.
+			function extraExclusions(cup, base) {
+				var have = {};
+
+				((base && base.exclude) || []).forEach(function (f) { have[f.filterType + ":" + f.values.join(",")] = true; });
+
+				return (cup.exclude || []).filter(function (f) { return !have[f.filterType + ":" + f.values.join(",")]; });
+			}
+
 			/*
-			* The menu is the open leagues plus every cup format in the gamemaster that has ranking data at its CP.
-			* Which of those exist is found by asking the server, so a format without rankings is never offered.
+			* The menu is the open leagues plus every cup with ranking data: the formats the site lists, then any other cup
+			* that has a ranking file at some CP. Which files exist is found by asking the server, so nothing is offered
+			* without data. A cup that borrows another cup's ranking (rankingAlias) is offered only if the extra bans it adds
+			* are kinds this page can apply, and only if it adds any, since otherwise it is the same pool as the open league.
 			*/
 			function buildFormatSelect(done) {
 				var $select = $(".academy-league").html("");
 				var $open = $('<optgroup label="Open leagues"></optgroup>');
-				var $cups = $('<optgroup label="Cups and formats"></optgroup>');
+				var $formats = $('<optgroup label="Cups and formats"></optgroup>');
+				var $other = $('<optgroup label="Other cups"></optgroup>');
 				var seen = {};
 				var candidates = [];
 
@@ -155,32 +178,79 @@ var InterfaceMaster = (function () {
 					$open.append($("<option>").val(f.value).text(f.label));
 				});
 
-				((gm.data && gm.data.formats) || []).forEach(function (f) {
-					var key = f.cup + "|" + f.cp;
+				function addCandidate(cupName, cp, label, group) {
+					var key = cp + "|" + cupName;
+					var cup = gm.getCupById(cupName);
 
-					if (!f.cup || f.cup === "custom" || f.cup === "all" || !f.cp || seen[key] || !gm.getCupById(f.cup)) {
+					if (!cup || cupName === "custom" || cupName === "all" || !cp || seen[key]) {
 						return;
 					}
 
+					var exclude = null;
+
+					if (cup.rankingAlias) {
+						exclude = extraExclusions(cup, gm.getCupById(cup.rankingAlias));
+
+						if (exclude.length === 0 || exclude.some(function (f) { return ["id", "tag", "type"].indexOf(f.filterType) === -1; })) {
+							return;
+						}
+					}
+
 					seen[key] = true;
-					candidates.push({ value: f.cp + "|" + f.cup, label: f.title, cp: f.cp, cup: f.cup });
+					candidates.push({ value: key, label: label, cp: cp, cup: cupName, group: group, exclude: exclude });
+				}
+
+				((gm.data && gm.data.formats) || []).forEach(function (f) {
+					addCandidate(f.cup, f.cp, f.title, $formats);
+				});
+
+				(gm.data.cups || []).forEach(function (c) {
+					[500, 1500, 2500, 10000].forEach(function (cp) {
+						addCandidate(c.name, cp, c.title + " \u00B7 " + CP_NAMES[cp], $other);
+					});
 				});
 
 				var pending = candidates.length;
 				var found = {};
+				var uncertain = false; // A probe failed for a reason other than "no such file", so don't remember the result
+
+				// Which ranking files exist only changes with a new site version, so remember the answer
+				var cacheKey = "academy.formats." + siteVersion;
+
+				try {
+					var cached = JSON.parse(window.localStorage.getItem(cacheKey));
+
+					if (cached && cached.found) {
+						found = cached.found;
+						pending = 0;
+					}
+				} catch (e) {
+					// Probe again
+				}
 
 				function finish() {
+					try {
+						if (!uncertain) {
+							window.localStorage.setItem(cacheKey, JSON.stringify({ found: found }));
+						}
+					} catch (e) {
+						// Probes will just run again next time
+					}
+
 					candidates.forEach(function (c) {
 						if (found[c.value]) {
-							$cups.append($("<option>").val(c.value).text(c.label));
+							c.group.append($("<option>").val(c.value).text(c.label));
+							formatInfo[c.value] = { exclude: c.exclude };
 						}
 					});
 
 					$select.append($open);
 
-					if ($cups.children().length) {
-						$select.append($cups);
-					}
+					[$formats, $other].forEach(function ($g) {
+						if ($g.children().length) {
+							$select.append($g);
+						}
+					});
 
 					if ($select.find("option[value='" + settings.format + "']").length === 0) {
 						settings.format = defaults.format;
@@ -198,6 +268,10 @@ var InterfaceMaster = (function () {
 				candidates.forEach(function (c) {
 					$.ajax({ url: rankingFile(c.cp, c.cup), type: "HEAD" }).done(function () {
 						found[c.value] = true;
+					}).fail(function (xhr) {
+						if (xhr.status !== 404) {
+							uncertain = true;
+						}
 					}).always(function () {
 						pending--;
 
@@ -216,6 +290,16 @@ var InterfaceMaster = (function () {
 					window.localStorage.removeItem(probe);
 
 					return window.localStorage;
+				} catch (e) {
+					return null;
+				}
+			}
+
+			function legacyLeague() {
+				try {
+					var saved = JSON.parse(window.localStorage.getItem(SETTINGS_KEY));
+
+					return saved && saved.league ? parseInt(saved.league, 10) : null;
 				} catch (e) {
 					return null;
 				}
@@ -312,7 +396,7 @@ var InterfaceMaster = (function () {
 
 						var format = parseFormat(settings.format);
 
-						pool = QuizEngine.buildPool(gm.data, data, 70);
+						pool = QuizEngine.buildPool(gm.data, data, 70, { exclude: formatInfo[settings.format] && formatInfo[settings.format].exclude });
 						progress.setScope(settings.format);
 
 						try {

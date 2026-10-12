@@ -255,3 +255,26 @@ test('Progress only replays a missed card in the format it was missed in', () =>
 	prog.setScope('1500|all');
 	assert.equal(prog.weakCards().length, 1);
 });
+
+test('A borrowed-ranking cup applies its own bans, and unknown ban kinds are refused', () => {
+	const rk = JSON.parse(fs.readFileSync(path.join(src, 'data/rankings/all/overall/rankings-1500.json'), 'utf8'));
+	const target = rk[5].speciesId;
+	const banned = QE.buildPool(gm, rk, 80, { exclude: [{ filterType: 'id', values: [target] }] });
+	assert.equal(banned.byId[target], undefined);
+	assert.equal(banned.length, QE.buildPool(gm, rk, 80).length - 1);
+	assert.ok(QE.buildPool(gm, rk, 80).byId[target]);
+	assert.throws(() => QE.buildPool(gm, rk, 80, { exclude: [{ filterType: 'move', values: ['X'] }] }), /cannot apply/);
+});
+
+test('Cards saved before formats existed are adopted into one format', () => {
+	const store = QE.memoryStorage();
+	const old = new QE.Progress(store);
+	const q = QE.generate(QE.createRng(3), pool, { categories: ['count'], level: 1 });
+	old.record(q, false);
+	const fresh = new QE.Progress(store);
+	fresh.adoptUnscoped('1500|all');
+	fresh.setScope('1500|all');
+	assert.equal(fresh.weakCards().length, 1);
+	fresh.setScope('1500|mega');
+	assert.equal(fresh.weakCards().length, 0);
+});

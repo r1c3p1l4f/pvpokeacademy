@@ -78,11 +78,15 @@ Two things still use `TurnMath`: measuring the leak, which `engine-check.mjs` pi
 
 ### Leagues, cups and Megas
 
-The quiz format menu is the three open leagues plus every cup format in the gamemaster that has ranking data at its CP (the page checks which ranking files exist, so a cup with none is never offered). Each format builds its question pool from that cup's own rankings and runs the swap simulations under that cup, so the answers reflect the cup's meta: the same lead can be a stay in the open Great League and a swap in Mega Great.
+The quiz format menu is the three open leagues plus every cup that has ranking data: the formats the site lists, then any other cup with a ranking file at some CP (the page asks the server which files exist, so nothing is offered without data). A cup that borrows another cup's ranking, such as the P!P Championship Series, is offered only when it adds bans the page can apply, and those bans are applied to the pool.
 
-The pool is the top 70 of the ranking, plus up to 10 Mega Pokemon from further down. Megas rarely rank in the top 70 of the Great and Ultra Mega cups, so without this they would barely appear. The open leagues exclude Megas entirely, as the game does.
+Each format builds its pool from that cup's own ranking and runs the swap simulations under that cup. What changes between cups is who is in the pool and which sets they run, so the matchups, the team shapes (ABA, ABB, ABC) and the answers change with them. The simulation of one specific matchup does not change from cup to cup unless the cup changes the level cap: I re-rated 60 scenarios between the open and Mega Great Leagues and every decision was identical. None of the cups on the menu has a team rule beyond party size (no restricted picks or type-sharing rule), and `cups-check.mjs` fails if one gains such a key, since swap questions would then show illegal teams.
 
-Megas tagged `supermega` carry a third Charged Move. The pool keeps all three, and the swap simulations equip all three, so a count question and a stay-or-swap answer describe the same Pokemon. It changes results: with Outrage+ equipped, Mega Dragonite rates 488 instead of 600 against one Master League opponent in the Mega cup, and Mega Chesnaught 631 instead of 324 against another. Missed cards are remembered per format and only come back in the format they were missed in.
+The pool is the top 70 of the ranking, plus up to 10 Mega Pokemon from further down. Megas rarely rank in the top 70 of the Great and Ultra Mega cups, so without this they would barely appear. The open leagues exclude Megas, as the game does.
+
+Megas tagged `supermega` carry a third Charged Move. The pool keeps all three, and the swap simulations equip all three, so a count question and a stay-or-swap answer describe the same Pokemon. It does change results, and not always in the Mega's favor: in the Mega Master League, Mega Dragonite rates 488 with Outrage+ and 600 without against Origin Forme Palkia. In the three-move run the simulator's AI throws Outrage+ at turn 14 and faints at turn 40, while the two-move run wins at turn 38 with three Thunder Punches. That is the AI's choice with the loadout it was given (the equipped move IDs match the pool's), not a setup error.
+
+Missed cards are remembered per format and only come back in the format they were missed in. Cards saved before formats existed are assigned to the league saved with them.
 
 ### Stay or swap
 

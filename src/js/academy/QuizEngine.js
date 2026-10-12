@@ -75,10 +75,27 @@
 	* `megaScan`). Megas rarely rank in the top of the Great and Ultra Mega cups, so without this they would barely appear.
 	* Megas with a third Charged Move keep all three in `charged`.
 	*/
+	// Does one cup exclusion filter ban this Pokemon? Only the filter kinds the borrowed-ranking cups use are understood.
+	function excludedBy(filter, speciesId, info) {
+		var id = speciesId.replace("_shadow", "").replace("_xs", "");
+
+		switch (filter.filterType) {
+			case "id":
+				return filter.values.indexOf(id) > -1 || filter.values.indexOf(speciesId) > -1;
+			case "tag":
+				return filter.values.some(function (t) { return (info.tags || []).indexOf(t) > -1; });
+			case "type":
+				return filter.values.some(function (t) { return (info.types || []).indexOf(t) > -1; });
+			default:
+				throw new Error("buildPool cannot apply a cup filter of type " + filter.filterType);
+		}
+	}
+
 	function buildPool(gmData, rankings, limit, opts) {
 		opts = opts || {};
 
 		var megaExtra = opts.megaExtra === undefined ? 10 : opts.megaExtra;
+		var banned = opts.exclude || []; // A cup's own exclusion rules, for cups that borrow another cup's ranking
 		var megaScan = opts.megaScan || 250;
 		var moves = {};
 		var species = {};
@@ -107,6 +124,11 @@
 
 		chosen.forEach(function (r) {
 			var info = species[r.speciesId];
+
+			if (info && banned.some(function (f) { return excludedBy(f, r.speciesId, info); })) {
+				return;
+			}
+
 			var set = r.moveset || [];
 			var fast = moves[set[0]];
 
@@ -996,6 +1018,26 @@
 				state.cards[cardKey] = card;
 				prune();
 				save();
+			},
+
+			// Cards saved before formats existed have no scope. Give them one so they stay reachable.
+			adoptUnscoped: function (value) {
+				var changed = false;
+
+				Object.keys(state.cards).forEach(function (k) {
+					var card = state.cards[k];
+
+					if (!card.scope) {
+						delete state.cards[k];
+						card.scope = value;
+						state.cards[value + "#" + k] = card;
+						changed = true;
+					}
+				});
+
+				if (changed) {
+					save();
+				}
 			},
 
 			// Cards are tracked per format; set it whenever the league or cup changes
