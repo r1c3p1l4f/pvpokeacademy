@@ -112,12 +112,6 @@ var Coach = (function () {
 
 	// ---------- Helpers ----------
 
-	function cheapestMove(moves) {
-		return moves.reduce(function (best, m) {
-			return (!best || m.energy < best.energy) ? m : best;
-		}, null);
-	}
-
 	function safeDamage(attacker, defender, move) {
 		try {
 			return DamageCalculator.damage(attacker, defender, move);
@@ -135,99 +129,173 @@ var Coach = (function () {
 	// ---------- Live advice ----------
 
 	/*
-	* Damage of the hardest Charged Move the opponent could throw within the wait we'd recommend (up to `waits` extra
-	* Fast Moves of ours). A shield soaks it down to 1. Mirrors the "don't optimize timing if they can KO us" bail-outs in ActionLogic.
+	* The prompts come from the engine itself: ActionLogic.decideAction, the same function that decides when the Battle
+	* page's simulated Pokemon throw, including its timing optimizer and its KO, energy cap and opponent-burst checks.
+	* The coach adds no policy of its own. All it does is hand the engine the state it would see at your next action turn.
+	*
+	* The engine reads cooldown, energy and HP off the Pokemon, so those are set to their projected values for the call
+	* and restored in a finally block. The call is synchronous, so the battle loop can't run in between.
 	*/
-	function oppBurst(me, opp, waits) {
-		var turns = (waits + 1) * me.fastMove.turns + 1;
-		var landings = Math.ceil(turns / opp.fastMove.turns);
-		var energy = Math.min(TurnMath.MAX_ENERGY, opp.energy + landings * opp.fastMove.energyGain);
-		var burst = 0;
 
-		opp.chargedMoves.forEach(function (m) {
-			if (energy >= m.energy) {
-				burst = Math.max(burst, me.shields > 0 ? 1 : safeDamage(opp, me, m));
-			}
-		});
+	var engineWarned = false;
 
-		return burst;
-	}
+	// What the engine would see at the turn you next act, after `taps` more Fast Moves of yours.
+	// Only state is advanced here (cooldowns, energy, HP from Fast Moves registering), never the decision.
+	function projectState(me, opp, taps) {
+		var a = me.fastMove.turns;
+		var b = opp.fastMove.turns;
+		var myCd = me.cooldown / TurnMath.TURN_MS;
+		var oppCd = opp.cooldown / TurnMath.TURN_MS;
+		var turn = Math.max(1, myCd) + taps * a; // turns from now until that decision
+		var oppLandings = TurnMath.landingsBefore(oppCd, b, turn);
+		var myLandings = (myCd >= 2 ? 1 : 0) + taps; // a Fast Move in flight, plus each tap, registers before then
+		var nextTap = Math.max(oppCd, 1);
+		var cd;
 
-	/*
-	* What should the player do next turn? One advice state feeds the panel text, the banner, and the button ring and
-	* badge, so they can never disagree.
-	*   css    - go / wait / warn
-	*   text   - full sentence for the panel (HTML)
-	*   short  - a few words for the banner on the battle window
-	*   badge  - "GO", or the number of Fast Moves still to tap, shown on the button to throw
-	*   button - index of that Charged Move
-	* Returns null when no Charged Move is affordable.
-	*/
-	function computeAdvice(me, opp) {
-		var ready = me.chargedMoves.filter(function (m) { return me.energy >= m.energy; });
+		if (nextTap < turn) {
+			var lastTap = nextTap + Math.floor((turn - 1 - nextTap) / b) * b;
 
-		if (ready.length === 0) {
-			return null;
-		}
-
-		var move = cheapestMove(ready);
-		var bestReady = ready.reduce(function (best, m) { return (!best || m.energy > best.energy) ? m : best; }, null);
-		var chosen = ready.length > 1 ? bestReady : move;
-		var button = me.chargedMoves.indexOf(chosen);
-
-		// A Charged Move that knocks out an unshielded opponent should just be thrown
-		if (opp.shields === 0) {
-			for (var i = 0; i < ready.length; i++) {
-				if (safeDamage(me, opp, ready[i]) >= opp.hp) {
-					return {
-						css: "go",
-						text: "Throw <b>" + esc(ready[i].name) + "</b> now. It knocks " + esc(opp.speciesName) + " out.",
-						short: "Throw " + ready[i].name + ": KO",
-						badge: "GO",
-						button: me.chargedMoves.indexOf(ready[i])
-					};
-				}
-			}
-		}
-
-		var adv = TurnMath.adviseThrow({
-			a: me.fastMove.turns,
-			b: opp.fastMove.turns,
-			myCd: me.cooldown / TurnMath.TURN_MS,
-			oppCd: opp.cooldown / TurnMath.TURN_MS,
-			energy: me.energy,
-			gain: me.fastMove.energyGain,
-			cost: move.energy,
-			maxWait: 2,
-			danger: { hp: me.hp, oppFastDamage: safeDamage(opp, me, opp.fastMove), oppDuration: opp.fastMove.turns, oppBurst: oppBurst(me, opp, 2) }
-		});
-
-		var when = adv.now.turn > 1 ? " (in " + pluralize(adv.now.turn, "turn") + ")" : "";
-		var name = esc(chosen.name);
-
-		if (adv.action === "wait") {
-			var taps = adv.waitFor.j;
-
-			return {
-				css: "wait",
-				text: "Tap <b>" + esc(me.fastMove.name) + "</b> " + pluralize(taps, "more time") + ", then throw. " + esc(adv.reason),
-				short: "Tap " + taps + " more, then throw",
-				badge: String(taps),
-				button: button
-			};
-		}
-
-		if (adv.now.good) {
-			return { css: "go", text: "Throw <b>" + name + "</b>" + when + ". " + esc(adv.reason), short: "Throw " + chosen.name, badge: "GO", button: button };
+			cd = Math.max(0, b - (turn - lastTap));
+		} else {
+			cd = Math.max(0, oppCd - turn);
 		}
 
 		return {
-			css: "warn",
-			text: "You can throw <b>" + name + "</b>" + when + ", but " + esc(adv.reason.charAt(0).toLowerCase() + adv.reason.slice(1)),
-			short: "Throw " + chosen.name + " (leaky)",
-			badge: "GO",
-			button: button
+			meEnergy: Math.min(TurnMath.MAX_ENERGY, me.energy + myLandings * me.fastMove.energyGain),
+			meHp: me.hp - oppLandings * safeDamage(opp, me, opp.fastMove),
+			oppEnergy: Math.min(TurnMath.MAX_ENERGY, opp.energy + oppLandings * opp.fastMove.energyGain),
+			oppHp: opp.hp - myLandings * safeDamage(me, opp, me.fastMove),
+			oppCooldown: cd * TurnMath.TURN_MS
 		};
+	}
+
+	// Ask the engine what it would do, and why. Returns {action, reasons} where action is a Charged Move index or -1 to tap.
+	function askEngine(me, opp, state) {
+		var saved = {
+			me: { cooldown: me.cooldown, energy: me.energy, hp: me.hp, timing: me.optimizeMoveTiming, farm: me.farmEnergy },
+			opp: { cooldown: opp.cooldown, energy: opp.energy, hp: opp.hp }
+		};
+
+		try {
+			me.cooldown = 0;
+			me.energy = state.meEnergy;
+			me.hp = Math.max(1, state.meHp);
+			me.optimizeMoveTiming = true; // the coach always asks for the engine's best timing
+			me.farmEnergy = false;
+			opp.cooldown = state.oppCooldown;
+			opp.energy = state.oppEnergy;
+			opp.hp = Math.max(1, state.oppHp);
+
+			var run = battle.withDecisionLog(function () {
+				return ActionLogic.decideAction(battle, me, opp);
+			});
+
+			return {
+				action: run.result && run.result.type === "charged" ? run.result.value : -1,
+				reasons: run.entries.map(function (e) { return e.string.trim(); })
+			};
+		} finally {
+			me.cooldown = saved.me.cooldown;
+			me.energy = saved.me.energy;
+			me.hp = saved.me.hp;
+			me.optimizeMoveTiming = saved.me.timing;
+			me.farmEnergy = saved.me.farm;
+			opp.cooldown = saved.opp.cooldown;
+			opp.energy = saved.opp.energy;
+			opp.hp = saved.opp.hp;
+		}
+	}
+
+	// A few words for the engine's reason, only where its wording is recognizable. Otherwise stay neutral.
+	function describeHold(reasons) {
+		var text = reasons.join(" ");
+
+		if (/optimizing move timing/.test(text)) {
+			return "waiting for better timing";
+		}
+
+		return "";
+	}
+
+	/*
+	* One advice state feeds the panel text, the banner, and the button ring and badge, so they can't disagree.
+	*   css    - go / wait
+	*   text   - sentence for the panel (HTML)
+	*   short  - a few words for the banner
+	*   badge  - "GO", the number of Fast Moves to tap first (1 or 2), or "HOLD"
+	*   button - index of the Charged Move to throw, or -1
+	* Returns null when there's nothing to say or the engine can't be asked.
+	*/
+	function computeAdvice(me, opp) {
+		var cost = me.chargedMoves.reduce(function (lo, m) { return Math.min(lo, m.energy); }, TurnMath.MAX_ENERGY);
+
+		if (me.energy < cost && me.energy + me.fastMove.energyGain * 2 < cost) {
+			return null; // nothing to throw soon, the buttons' counts already say how far off it is
+		}
+
+		try {
+			var now = askEngine(me, opp, projectState(me, opp, 0));
+
+			if (now.action > -1) {
+				var move = me.chargedMoves[now.action];
+
+				return {
+					css: "go",
+					text: "Throw <b>" + esc(move.name) + "</b>. The simulator's own logic would throw here.",
+					short: "Throw " + move.name,
+					badge: "GO",
+					button: now.action,
+					source: "engine",
+					taps: 0
+				};
+			}
+
+			if (me.energy < cost) {
+				return null;
+			}
+
+			// The engine is holding the throw. Look ahead (at most 2 of your own Fast Moves) for when it would throw.
+			var why = describeHold(now.reasons);
+
+			for (var taps = 1; taps <= 2; taps++) {
+				var future = projectState(me, opp, taps);
+
+				if (future.meHp <= 0) {
+					break;
+				}
+
+				var later = askEngine(me, opp, future);
+
+				if (later.action > -1) {
+					return {
+						css: "wait",
+						text: "Tap <b>" + esc(me.fastMove.name) + "</b> " + pluralize(taps, "more time") + ", then throw <b>" + esc(me.chargedMoves[later.action].name) + "</b>." + (why ? " The simulator is " + why + "." : ""),
+						short: "Tap " + taps + " more, then throw",
+						badge: String(taps),
+						button: later.action,
+						source: "engine",
+						taps: taps
+					};
+				}
+			}
+
+			return {
+				css: "wait",
+				text: "Hold. Keep tapping" + (why ? ": the simulator is " + why : "") + ".",
+				short: "Hold: keep tapping",
+				badge: "HOLD",
+				button: -1,
+				source: "engine",
+				taps: null
+			};
+		} catch (e) {
+			if (!engineWarned) {
+				engineWarned = true;
+				console.error("Coach: could not ask the engine for advice", e);
+			}
+
+			return null;
+		}
 	}
 
 	// ---------- Throw grading ----------
@@ -531,6 +599,7 @@ var Coach = (function () {
 			if (species[i] !== response.pokemon[i]) {
 				species[i] = response.pokemon[i];
 				taps[i] = 0;
+				latestAdvice = null;
 			}
 		}
 
@@ -561,7 +630,13 @@ var Coach = (function () {
 			fullEnergyTurns++;
 		}
 
-		latestAdvice = (response.phase === "neutral" && me.hp > 0 && opp.hp > 0) ? computeAdvice(me, opp) : null;
+		// Ask the engine only at your own action boundaries, when you can act on the next turn. Between them the answer
+		// holds, so the prompt and the tap countdown change when you tap, not every 500 ms.
+		if (response.phase !== "neutral" || me.hp <= 0 || opp.hp <= 0) {
+			latestAdvice = null;
+		} else if (me.cooldown <= TurnMath.TURN_MS || !latestAdvice) {
+			latestAdvice = computeAdvice(me, opp);
+		}
 
 		render();
 	}
@@ -661,6 +736,7 @@ var Coach = (function () {
 		populateModeSelect: populateModeSelect,
 		renderReport: renderReport,
 		summarize: summarize,
-		getThrows: function () { return throws; }
+		getThrows: function () { return throws; },
+		getAdvice: function () { return latestAdvice; }
 	};
 })();

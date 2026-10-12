@@ -70,7 +70,7 @@ while (Date.now() - t0 < MAX_MS) {
 	if (phase && phase.startsWith('suspend_charged_shield')) await page.evaluate(() => $('.shield-window .close').trigger('click'));
 }
 
-const result = await page.evaluate(() => { window.__battle.debug(); return { rec: window.__rec, throws: Coach.getThrows() }; });
+const result = await page.evaluate(() => { window.__battle.debug(); return { rec: window.__rec, throws: Coach.getThrows(), steps: window.__battle.getStepLog(), rawThrows: window.__battle.getThrowLog() }; });
 await page.waitForTimeout(500);
 await browser.close();
 
@@ -79,61 +79,47 @@ const tapsBy = [[], []];
 result.rec.forEach(r => r.taps.forEach(a => tapsBy[a].push(r.turn - 1)));
 
 /*
-* Dead-turn check, counted in real engine steps rather than turn numbers. In emulate mode the turn counter can run
-* backwards ("continue the same turn" when a throw shares a turn with the opponent's tap), so numbers mislead.
+* Dead-turn check at engine level. Battle.getStepLog() has one record per processed step, and every throw records the
+* index of its step, so this counts steps by array index with no UI timing involved.
 *
-* After each of your Charged Moves, count the live (neutral) updates until the opponent acts. Normally that's 2: the
-* dead turn, then their tap. Throws that share a turn with an opponent tap (sneaks) and sequences that end in a faint
-* or swap are reported separately, because the engine handles those differently.
+* After each of your Charged Moves, how many engine steps pass before the opponent has an action accepted? Two numbers:
+*   total   - every step, since cooldowns tick on all of them
+*   decided - only steps where actions could be chosen (the "same turn" re-runs after a Charged Move don't count)
+* Normally both are 2: the dead turn, then their tap. Sneaks (the opponent acted on the throw step itself) and sequences
+* that end in a swap are reported separately.
 */
-let ordinaryChecked = 0, ordinaryBad = 0, sneakSeen = [], skipped = 0;
+const steps = result.steps;
+const rows = [];
+let ordinaryChecked = 0, ordinaryBad = 0, skipped = 0;
 const lines = [];
-const rec = result.rec;
+const sneakSeen = [];
 
-function stepsToOppAction(startIndex) {
-	let steps = 0;
+for (const t of result.rawThrows) {
+	if (t.actor !== 0 || t.simultaneous) continue;
+	const graded = result.throws.find(x => x.turn === t.turn && x.actor === 0);
+	const sameStep = steps[t.stepIndex] && steps[t.stepIndex].accepted.some(a => a[0] === 1);
+	let total = 0, decided = 0, outcome = null;
 
-	for (let i = startIndex; i < rec.length; i++) {
-		const r = rec[i];
-
-		if (r.phase === 'suspend_switch' || r.phase === 'game_over') return { outcome: 'faint-or-swap' };
-		if (r.phase.startsWith('suspend_charged')) return { outcome: 'other-charged', steps };
-		if (r.phase !== 'neutral') continue;
-
-		steps++;
-		if (r.taps.includes(1)) return { outcome: 'tap', steps };
-		if (steps > 8) return { outcome: 'none-seen', steps };
+	for (let i = t.stepIndex + 1; i < steps.length; i++) {
+		total++;
+		if (steps[i].decided) decided++;
+		const theirs = steps[i].accepted.filter(a => a[0] === 1);
+		if (theirs.some(a => a[1] === 'switch')) { outcome = 'swap'; break; }
+		if (theirs.length) { outcome = theirs[0][1]; break; }
+		if (total > 10) { outcome = 'none'; break; }
 	}
 
-	return { outcome: 'ended' };
-}
+	rows.push({ turn: t.turn, grade: graded ? graded.grade : '?', rho: t.oppCooldown, sameStep, total, decided, outcome });
 
-for (const t of result.throws) {
-	if (t.simultaneous || t.actor !== 0) continue;
-
-	// Find this throw's charge sequence, then the end of its animation, then count live steps from there
-	const charge = rec.findIndex(r => r.phase === 'suspend_charged_attack' && r.turn >= t.turn - 1 && r.turn <= t.turn + 1);
-	if (charge < 0) { skipped++; continue; }
-	const anim = rec.findIndex((r, i) => i > charge && r.phase === 'animating');
-	if (anim < 0) { skipped++; continue; }
-
-	const res = stepsToOppAction(anim + 1);
-
-	if (res.outcome === 'faint-or-swap' || res.outcome === 'other-charged' || res.outcome === 'ended') { skipped++; continue; }
-
-	if (t.sneak) {
-		sneakSeen.push(res.steps);
-		continue;
-	}
+	if (outcome === 'swap' || outcome === null || outcome === 'none') { skipped++; continue; }
+	if (sameStep) { sneakSeen.push(`${total}/${decided}`); continue; }
 
 	ordinaryChecked++;
-
-	if (res.steps !== 2) {
-		ordinaryBad++;
-		const nearby = rec.slice(Math.max(0, charge - 1), anim + 8).map(r => `update ${r.turn} ${r.phase} taps:${r.taps.join('') || '-'} cd:${r.cd.join('/')}`);
-		lines.push(`DEAD-TURN T${t.turn} (${t.grade}): opponent acted after ${res.steps} live steps, expected 2\n  ${nearby.join('\n  ')}`);
-	}
+	if (total !== 2 || decided !== 2) ordinaryBad++;
 }
+
+console.log('engine-level steps after each of your throws (total/decided):');
+rows.forEach(r => console.log(`  T${r.turn} ${r.grade} rho=${r.rho}${r.sameStep ? ' [opp acted on the throw step]' : ''}: ${r.total}/${r.decided} then opp ${r.outcome}`));
 
 const deadTurnChecked = ordinaryChecked, deadTurnBad = ordinaryBad;
 let adviceChecked = 0, adviceBad = 0;
@@ -149,7 +135,7 @@ for (const t of result.throws) {
 	}
 }
 
-console.log(`throws ${result.throws.length}; ordinary dead-turn checks ${deadTurnChecked}, mismatches ${deadTurnBad}; sneak throws (live steps until they act): ${JSON.stringify(sneakSeen)}; skipped (faint/swap/other) ${skipped}; advice checks ${adviceChecked}, mismatches ${adviceBad}`);
+console.log(`throws ${result.throws.length}; ordinary dead-turn checks ${deadTurnChecked}, mismatches ${deadTurnBad}; sneak throws (total/decided steps): ${JSON.stringify(sneakSeen)}; skipped ${skipped}; advice checks ${adviceChecked}, mismatches ${adviceBad}`);
 lines.filter(l => l.startsWith('ADVICE')).forEach(l => console.log(l));
 if (lines.some(l => l.startsWith('DEAD-TURN'))) console.log('(dead-turn step counts differed from 2 in ' + deadTurnBad + ' ordinary throw(s); informational, see the comment at the top of this file)');
 console.log(errors.length ? 'PAGE ERRORS: ' + errors.join(' | ') : 'no page errors');

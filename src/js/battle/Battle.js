@@ -60,6 +60,7 @@ function Battle(){
 
 	var trackThrows = false; // Record details of each Charged Move for timing feedback (see js/academy)
 	var throwLog = [];
+	var stepLog = []; // One record per processed step while tracking, for measuring engine timing
 
 	var chargeAmount = 0; // Multiplier used in emulated battles
 	var playerUseShield = false; // Flag for a player to use an available shield in emulated battles
@@ -275,6 +276,7 @@ function Battle(){
 		switchTimerMarked = false;
 		decisionLog = [];
 		throwLog = [];
+		stepLog = [];
 	}
 
 	// Process a turn
@@ -325,6 +327,7 @@ function Battle(){
 		var chargedMoveThisTurn = false;
 		var chargedMoveLastTurn = previousTurnActions.find(action => action.type == "charged");
 		var cooldownsToSet = [pokemon[0].cooldown, pokemon[1].cooldown]; // Store cooldown values to set later
+		var acceptedThisStep = []; // [actor, type] of each action that passed the post-Charged Move filter, for the step log
 
 		if(turns > lastProcessedTurn){
 			for(var i = 0; i < 2; i++){
@@ -377,6 +380,7 @@ function Battle(){
 
 						if(valid){
 							queuedActions.push(action);
+							acceptedThisStep.push([action.actor, action.type]);
 						}
 					}
 				}
@@ -386,6 +390,20 @@ function Battle(){
 		// Set cooldowns for both Pokemon. We do this after move decision making because cooldown values are used in the decision making process
 		pokemon[0].cooldown = cooldownsToSet[0];
 		pokemon[1].cooldown = cooldownsToSet[1];
+
+		// Record this step before any actions are processed. A Charged Move can suspend the step part way through,
+		// so a record written at the end would miss exactly the steps that matter.
+		if(trackThrows){
+			stepLog.push({
+				index: stepLog.length,
+				turn: turns,
+				lastProcessedTurn: lastProcessedTurn,
+				decided: turns > lastProcessedTurn, // false for the "same turn" re-runs after a Charged Move, which still tick cooldowns
+				chargedLastTurn: !!chargedMoveLastTurn,
+				accepted: acceptedThisStep,
+				cooldowns: [cooldownsToSet[0] / deltaTime, cooldownsToSet[1] / deltaTime]
+			});
+		}
 
 		// Check for a Charged Move this turn to apply floating Fast Moves
 		var chargedMoveLastTurn = previousTurnActions.find(action => action.type == "charged");
@@ -1041,6 +1059,7 @@ function Battle(){
 		}
 
 		throwLog.push({
+			stepIndex: stepLog.length - 1, // the step this throw was processed in
 			turn: turns,
 			time: time,
 			actor: poke.index,
@@ -1071,6 +1090,34 @@ function Battle(){
 
 	this.isTrackingThrows = function(){
 		return trackThrows;
+	}
+
+	this.getStepLog = function(){
+		return stepLog;
+	}
+
+	/*
+	* Run fn with the engine's decision logging on, and return what the engine logged during it. The log is cut back
+	* afterwards and the debug flag restored, so a caller that had debugging on keeps its own entries untouched.
+	*/
+	this.withDecisionLog = function(fn){
+		var previousDebug = debugMode;
+		var startLength = decisionLog.length;
+		var result;
+
+		debugMode = true;
+
+		try{
+			result = fn();
+		} finally{
+			debugMode = previousDebug;
+		}
+
+		var entries = decisionLog.slice(startLength);
+
+		decisionLog.length = startLength;
+
+		return { result: result, entries: entries };
 	}
 
 	this.getThrowLog = function(){
