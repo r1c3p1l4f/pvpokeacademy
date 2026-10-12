@@ -69,6 +69,13 @@ var InterfaceMaster = (function () {
 				// Record Charged Move timing for the Energy & Timing audit
 				battle.setTrackThrows(true);
 
+				// Ask the simulator's own decision logic about each throw, as it happens
+				if(typeof EngineAdvisor !== "undefined"){
+					battle.setThrowObserver(function(poke, opp, move, snapshot){
+						return EngineAdvisor.review(poke, opp, move, snapshot);
+					});
+				}
+
 				pokeSearch.setBattle(battle);
 
 				$(".poke-select-container > .poke.single").each(function(index, value){

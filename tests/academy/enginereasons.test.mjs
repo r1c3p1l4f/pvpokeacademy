@@ -120,3 +120,16 @@ test('internal and informational lines do not produce a headline', () => {
 	assert.equal(e.headline, '');
 	assert.deepEqual(e.unknown, []);
 });
+
+test('every shown rule has banner wording, and the banner picks the decisive reason', () => {
+	for (const rule of ER.RULES) {
+		if (rule.role === 'internal' || rule.id === 'plan-step' || rule.id === 'threat') continue;
+		assert.equal(typeof rule.short, 'function', 'no short wording for ' + rule.id);
+	}
+	assert.equal(ER.explain(['is optimizing move timing'], 'you').short, 'better timing');
+	assert.equal(ER.explain(['uses a fast move because it has no energy for Hydro Pump'], 'you').short, 'building to Hydro Pump');
+	assert.equal(ER.explain(["uses Ice Beam because it thinks that using 2 moves afterwards is the best plan.", 'wants to use Surf after it uses Ice Beam'], 'you').short, 'plan: Ice Beam then Surf');
+	// a context-only line still gives the banner something honest
+	assert.equal(ER.explain(["doesn't use Ice Beam because it wants to bait"], 'you').short, 'baiting a shield');
+	assert.equal(ER.explain([], 'you').short, '');
+});

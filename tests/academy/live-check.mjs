@@ -46,6 +46,7 @@ await page.evaluate(() => {
 			turn: r.turn,
 			phase: r.phase,
 			advice: $('.coach-advice').attr('class') || '',
+			adviceText: $('.coach-advice').text(),
 			taps: (r.animations || []).filter(a => a.type === 'fast').map(a => a.actor),
 			cd: [r.pokemon[0].cooldown, r.pokemon[1].cooldown]
 		});
@@ -102,6 +103,8 @@ for (const t of result.rawThrows) {
 	for (let i = t.stepIndex + 1; i < steps.length; i++) {
 		total++;
 		if (steps[i].decided) decided++;
+		// The player's own next action (the test clicks buttons freely) changes what the count means, so stop there
+		if (steps[i].accepted.some(a => a[0] === 0 && a[1] !== 'fast')) { outcome = 'own'; break; }
 		const theirs = steps[i].accepted.filter(a => a[0] === 1);
 		if (theirs.some(a => a[1] === 'switch')) { outcome = 'swap'; break; }
 		if (theirs.length) { outcome = theirs[0][1]; break; }
@@ -110,7 +113,7 @@ for (const t of result.rawThrows) {
 
 	rows.push({ turn: t.turn, grade: graded ? graded.grade : '?', rho: t.oppCooldown, sameStep, total, decided, outcome });
 
-	if (outcome === 'swap' || outcome === null || outcome === 'none') { skipped++; continue; }
+	if (outcome === 'swap' || outcome === 'own' || outcome === null || outcome === 'none') { skipped++; continue; }
 	if (sameStep) { sneakSeen.push(`${total}/${decided}`); if (decided !== 2) ordinaryBad++; continue; }
 
 	ordinaryChecked++;
@@ -122,20 +125,30 @@ rows.forEach(r => console.log(`  T${r.turn} ${r.grade} rho=${r.rho}${r.sameStep 
 
 const deadTurnChecked = ordinaryChecked, deadTurnBad = ordinaryBad;
 const rec = result.rec;
-let adviceChecked = 0, adviceBad = 0;
+let adviceChecked = 0, adviceBad = 0, engineChecked = 0;
 
 for (const t of result.throws) {
 	if (t.simultaneous || t.actor !== 0) continue;
 	const shown = rec.find(r => r.turn === t.turn + 1); // pre-render class = advice shown while this turn was decided
 	if (shown) {
 		adviceChecked++;
+		// The prompt comes from the engine, so it is checked against the engine's own verdict on the same throw (the observer),
+		// not against a timing model. The two ask with different settings (the prompt assumes timing optimization on and farming
+		// off), so a disagreement is only reported when the player's own settings match the prompt's.
+		const raw = result.rawThrows.find(r => r.turn === t.turn && r.actor === 0);
 		const go = /\bgo\b/.test(shown.advice), wait = /\bwait\b/.test(shown.advice);
-		const ok = go ? t.rho <= 2 : (wait ? t.rho >= 3 : true);
-		if (!ok) { adviceBad++; lines.push(`ADVICE T${t.turn}: prompt "${shown.advice}" but graded rho=${t.rho} (${t.grade})`); }
+		if (raw && raw.engine && (go || wait)) {
+			const engineHolds = raw.engine.action === -1;
+			engineChecked++;
+			if ((wait && !engineHolds) || (go && engineHolds)) {
+				adviceBad++;
+				lines.push(`ADVICE T${t.turn}: prompt "${shown.advice}" (${shown.adviceText.slice(0, 90)}) but the observer says ${engineHolds ? 'hold' : 'throw'} (rho=${t.rho}, ${t.grade}) reasons=${JSON.stringify(raw.engine.reasons)}`);
+			}
+		}
 	}
 }
 
-console.log(`throws ${result.throws.length}; ordinary dead-turn checks ${deadTurnChecked}, mismatches ${deadTurnBad}; sneak throws (total/decided steps): ${JSON.stringify(sneakSeen)}; skipped ${skipped}; advice checks ${adviceChecked}, mismatches ${adviceBad}`);
+console.log(`throws ${result.throws.length}; ordinary dead-turn checks ${deadTurnChecked}, mismatches ${deadTurnBad}; sneak throws (total/decided steps): ${JSON.stringify(sneakSeen)}; skipped ${skipped}; advice checks ${adviceChecked} (${engineChecked} with an engine verdict), mismatches ${adviceBad}`);
 lines.filter(l => l.startsWith('ADVICE')).forEach(l => console.log(l));
 if (lines.some(l => l.startsWith('DEAD-TURN'))) console.log('(dead-turn step counts differed from 2 in ' + deadTurnBad + ' ordinary throw(s); informational, see the comment at the top of this file)');
 console.log(errors.length ? 'PAGE ERRORS: ' + errors.join(' | ') : 'no page errors');

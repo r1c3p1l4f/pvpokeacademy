@@ -130,8 +130,54 @@
 
 		answer.thrownIndex = poke.chargedMoves.indexOf(move);
 		answer.agrees = answer.action > -1 && answer.action === answer.thrownIndex;
+		answer.waitTaps = null;
+
+		// If the engine would have held, how many more Fast Moves until it would throw? (at most 2)
+		if (answer.action === -1) {
+			answer.waitTaps = tapsUntilThrow(poke, opp, snapshot, 2);
+		}
 
 		return answer;
+	}
+
+	/*
+	* Ask the engine again after one tap, then two, from the state of a throw that it would have held. Only state is
+	* advanced (see projectState); the decision is always the engine's. The cooldowns are put into their post-decision
+	* form for the hypothetical tap, and everything is restored afterward.
+	*/
+	function tapsUntilThrow(poke, opp, snapshot, maxTaps) {
+		var saved = { p: poke.cooldown, o: opp.cooldown };
+		var theirCooldownBefore = snapshot.cooldowns[opp.index];
+
+		try {
+			// After my tap: my own cooldown is a full Fast Move, and they've either tapped this turn (if they could act) or are still counting down
+			poke.cooldown = poke.fastMove.turns * TURN_MS;
+			opp.cooldown = theirCooldownBefore === 0 ? opp.fastMove.turns * TURN_MS : theirCooldownBefore;
+
+			for (var taps = 1; taps <= maxTaps; taps++) {
+				var future = projectState(poke, opp, taps - 1);
+
+				if (future.meHp <= 0) {
+					return null;
+				}
+
+				var later = ask(poke, opp, future, {
+					turns: snapshot.turn,
+					mode: snapshot.mode,
+					queuedFast: snapshot.queuedFast[poke.index],
+					coachDefaults: false
+				});
+
+				if (later.action > -1) {
+					return taps;
+				}
+			}
+
+			return null;
+		} finally {
+			poke.cooldown = saved.p;
+			opp.cooldown = saved.o;
+		}
 	}
 
 	/*

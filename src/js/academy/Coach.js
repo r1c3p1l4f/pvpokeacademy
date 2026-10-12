@@ -150,40 +150,6 @@ var Coach = (function () {
 	}
 
 	/*
-	* Why the engine is holding a throw, from its own decision log. The wording is matched loosely and anything
-	* unrecognized stays neutral, so a change in upstream's phrasing degrades to "Hold", never to a wrong reason.
-	*   kind   - timing / saving / farm / bait / debuff / other
-	*   phrase - for the panel sentence ("The simulator is ...")
-	*   short  - for the banner
-	*/
-	function classifyHold(reasons) {
-		var text = reasons.join(" | ");
-		var saving = /uses a fast move because it has no energy for ([^|]+)/.exec(text);
-
-		if (/optimizing move timing/.test(text)) {
-			return { kind: "timing", phrase: "waiting for better timing", short: "better timing" };
-		}
-
-		if (saving) {
-			return { kind: "saving", phrase: "saving energy for " + saving[1].trim(), short: "saving for " + saving[1].trim() };
-		}
-
-		if (/wants to farm down/.test(text)) {
-			return { kind: "farm", phrase: "farming energy before it throws", short: "farming energy" };
-		}
-
-		if (/wants to bait/.test(text)) {
-			return { kind: "bait", phrase: "baiting a shield first", short: "baiting a shield" };
-		}
-
-		if (/self debuffing|minimize time debuffed/.test(text)) {
-			return { kind: "debuff", phrase: "holding a self-debuffing move", short: "debuff plan" };
-		}
-
-		return { kind: "other", phrase: "", short: "keep tapping" };
-	}
-
-	/*
 	* One advice state feeds the panel text, the banner, and the button ring and badge, so they can't disagree.
 	*   css    - go / wait
 	*   text   - sentence for the panel (HTML)
@@ -192,6 +158,19 @@ var Coach = (function () {
 	*   button - index of the Charged Move to throw, or -1
 	* Returns null when there's nothing to say or the engine can't be asked.
 	*/
+	// The engine's reasons as panel text: its headline for the decision, then any context it logged
+	function reasonText(why) {
+		var parts = [];
+
+		if (why.headline) {
+			parts.push(esc(why.headline));
+		}
+
+		why.notes.forEach(function (n) { parts.push(esc(n.text)); });
+
+		return parts.join(" ");
+	}
+
 	function computeAdvice(me, opp) {
 		var cost = me.chargedMoves.reduce(function (lo, m) { return Math.min(lo, m.energy); }, TurnMath.MAX_ENERGY);
 
@@ -202,18 +181,20 @@ var Coach = (function () {
 		try {
 			var proj = [projectState(me, opp, 0)];
 			var now = askEngine(me, opp, proj[0]);
+			var why = EngineReasons.explain(now.reasons, "you");
 
 			if (now.action > -1) {
 				var move = me.chargedMoves[now.action];
 
 				return {
 					css: "go",
-					text: "Throw <b>" + esc(move.name) + "</b>. The simulator's own logic would throw here.",
+					text: (why.headline ? reasonText(why) : "Throw <b>" + esc(move.name) + "</b>. The simulator's own logic would throw here." + (why.notes.length ? " " + reasonText({ headline: "", notes: why.notes }) : "")),
 					short: "Throw " + move.name,
 					badge: "GO",
 					button: now.action,
 					source: "engine",
-					kind: "go",
+					kind: why.headlineId || "go",
+					why: why,
 					taps: 0,
 					proj: proj
 				};
@@ -224,8 +205,6 @@ var Coach = (function () {
 			}
 
 			// The engine is holding the throw. Look ahead (at most 2 of your own Fast Moves) for when it would throw.
-			var why = classifyHold(now.reasons);
-
 			for (var taps = 1; taps <= 2; taps++) {
 				var future = projectState(me, opp, taps);
 
@@ -240,12 +219,13 @@ var Coach = (function () {
 				if (later.action > -1) {
 					return {
 						css: "wait",
-						text: "Tap <b>" + esc(me.fastMove.name) + "</b> " + pluralize(taps, "more time") + ", then throw <b>" + esc(me.chargedMoves[later.action].name) + "</b>." + (why.phrase ? " The simulator is " + why.phrase + "." : ""),
+						text: "Tap <b>" + esc(me.fastMove.name) + "</b> " + pluralize(taps, "more time") + ", then throw <b>" + esc(me.chargedMoves[later.action].name) + "</b>. " + reasonText(why),
 						short: "Tap " + taps + " more, then throw",
 						badge: String(taps),
 						button: later.action,
 						source: "engine",
-						kind: why.kind,
+						kind: why.headlineId || "other",
+						why: why,
 						taps: taps,
 						proj: proj
 					};
@@ -254,12 +234,13 @@ var Coach = (function () {
 
 			return {
 				css: "wait",
-				text: "Hold. Keep tapping" + (why.phrase ? ": the simulator is " + why.phrase : "") + ".",
-				short: "Hold: " + why.short,
+				text: "Hold. Keep tapping. " + reasonText(why),
+				short: "Hold: " + (why.short || "keep tapping"),
 				badge: "HOLD",
 				button: -1,
 				source: "engine",
-				kind: why.kind,
+				kind: why.headlineId || "other",
+				why: why,
 				taps: null,
 				proj: proj
 			};
@@ -547,6 +528,11 @@ var Coach = (function () {
 
 		toast = null;
 		buildOverlay();
+
+		// Judge every Charged Move on the spot, as the engine's own decision logic would see it
+		battle.setThrowObserver(function (poke, opp, move, snapshot) {
+			return mode === "off" ? null : EngineAdvisor.review(poke, opp, move, snapshot);
+		});
 
 		if (!panel) {
 			panel = buildPanel();

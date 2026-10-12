@@ -16,36 +16,50 @@ function entry(over) {
 	}, over);
 }
 
-test('a last-turn throw is perfect and has no advice', () => {
+const HOLD_TIMING = { action: -1, move: null, agrees: false, waitTaps: 1, reasons: ['is optimizing move timing'] };
+const THROW_SAME = { action: 0, move: { name: 'Ice Punch' }, agrees: true, waitTaps: null, reasons: ['uses Ice Punch because it has 2 turn(s) before it is KO\'d'] };
+
+test('a last-turn throw is perfect and carries no engine verdict unless one was recorded', () => {
 	const t = TF.grade(entry({ oppCooldown: 1 }));
 	assert.equal(t.grade, 'perfect');
-	assert.equal(t.advice, null);
+	assert.equal(t.engine, null);
 	assert.match(TF.describe(t), /perfect/);
 	assert.equal(TF.betterNext(t), '');
 });
 
-test('a sneak is flagged, valued, and gets a wait suggestion', () => {
-	const t = TF.grade(entry({ oppCooldown: 5, energyBefore: 40 }));
+test('a sneak is flagged and valued; the engine says whether to wait', () => {
+	const t = TF.grade(entry({ oppCooldown: 5, energyBefore: 40, engine: HOLD_TIMING }));
 	assert.equal(t.grade, 'sneak');
 	assert.equal(t.freeTurns, 3);
 	// 3 free turns of a 5 turn move is 0.6 of a fast move: 5.4 energy, 6 damage
 	assert.equal(t.leakEnergy, 5.4);
 	assert.equal(t.leakDamage, 6);
-	assert.equal(t.advice.action, 'wait');
-	assert.match(TF.betterNext(t), /Next time: tap \d+ more Fast Moves? first/);
+	assert.equal(t.engine.holds, true);
+	assert.equal(t.engine.waitTaps, 1);
+	assert.match(TF.betterNext(t), /would have held here/);
+	assert.match(TF.betterNext(t), /better timing/);
+	assert.match(TF.betterNext(t), /after 1 more tap\./);
 	assert.match(TF.describe(t), /sneak/);
 });
 
-test('waiting advice is withheld when it would waste energy', () => {
-	const t = TF.grade(entry({ oppCooldown: 4, energyBefore: 99 }));
+test('a leak the engine would also throw into is reported as such, with its reason', () => {
+	const t = TF.grade(entry({ oppCooldown: 4, energyBefore: 99, engine: THROW_SAME }));
 	assert.equal(t.grade, 'bad');
-	assert.equal(t.advice.action, 'throw');
-	assert.match(TF.betterNext(t), /No better window/);
+	assert.equal(t.engine.agrees, true);
+	assert.match(TF.betterNext(t), /throws here too/);
+	assert.match(TF.betterNext(t), /knocked out/);
+});
+
+test('a clean throw the engine would have held still says so, and a different move is named', () => {
+	const clean = TF.grade(entry({ oppCooldown: 2, engine: HOLD_TIMING }));
+	assert.match(TF.betterNext(clean), /No free turns, but the simulator would still have held/);
+	const other = TF.grade(entry({ oppCooldown: 4, engine: { action: 1, move: { name: 'Psychic' }, agrees: false, waitTaps: null, reasons: [] } }));
+	assert.match(TF.betterNext(other), /would have thrown Psychic instead/);
 });
 
 test('simultaneous throws are not graded as leaks and are excluded from summaries', () => {
 	const t = TF.grade(entry({ oppCooldown: 5, simultaneous: true }));
-	assert.equal(t.advice, null);
+	assert.equal(TF.betterNext(t), '');
 	assert.match(TF.describe(t), /priority/);
 	const s = TF.summarize([t, TF.grade(entry({ oppCooldown: 2 }))]);
 	assert.equal(s.you.total, 1);

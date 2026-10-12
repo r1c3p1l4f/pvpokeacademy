@@ -2,16 +2,20 @@
 * TimingFeedback - turns raw Charged Move throw records (Battle.getThrowLog) into grades,
 * plain-English feedback and summaries. Shared by the Train coach and the Battle timing audit.
 *
-* No DOM dependencies. Requires TurnMath.
+* The leak itself (free turns and what they're worth) is measured by TurnMath, which engine-check.mjs pins to the engine.
+* Whether you should have waited is never worked out here: that judgment is the engine's own verdict on the throw
+* (entry.engine, filled in by Battle's throw observer), explained by EngineReasons.
+*
+* No DOM dependencies. Requires TurnMath and EngineReasons.
 */
 
 (function (root, factory) {
 	if (typeof module === 'object' && module.exports) {
-		module.exports = factory(require('./TurnMath.js'));
+		module.exports = factory(require('./TurnMath.js'), require('./EngineReasons.js'));
 	} else {
-		root.TimingFeedback = factory(root.TurnMath);
+		root.TimingFeedback = factory(root.TurnMath, root.EngineReasons);
 	}
-}(typeof self !== 'undefined' ? self : this, function (TurnMath) {
+}(typeof self !== 'undefined' ? self : this, function (TurnMath, EngineReasons) {
 
 	var GRADES = {
 		idle: { icon: "\u2714", label: "No move in flight", css: "perfect" },
@@ -54,23 +58,24 @@
 			leakEnergy: round1(leak.energy),
 			leakDamage: round1(leak.damage),
 			simultaneous: !!entry.simultaneous,
-			advice: null
+			engine: null
 		};
 
-		// For a leaky throw, work out what would have been better. A throw on the same turn as the
-		// opponent's is decided by Charged Move priority, not timing.
-		if (!g.good && !entry.simultaneous) {
-			result.advice = TurnMath.adviseThrow({
-				a: entry.myFastTurns,
-				b: entry.oppFastTurns,
-				myCd: 0,
-				oppCd: TurnMath.cdBefore(entry.oppCooldown, entry.oppFastTurns),
-				energy: entry.energyBefore,
-				gain: entry.myFastGain,
-				cost: entry.cost,
-				maxWait: 2,
-				danger: { hp: entry.hp, oppFastDamage: entry.oppFastDamage, oppDuration: entry.oppFastTurns, oppBurst: 0 }
-			});
+		// The engine's verdict on this throw, if one was recorded
+		var e = entry.engine;
+
+		if (e) {
+			var why = EngineReasons.explain(e.reasons, entry.actor === 0 ? "you" : "they");
+
+			result.engine = {
+				holds: e.action === -1,
+				agrees: !!e.agrees,
+				waitTaps: e.waitTaps,
+				otherMove: e.action > -1 && !e.agrees && e.move ? e.move.name : null,
+				headline: why.headline,
+				notes: why.notes.map(function (n) { return n.text; }),
+				kinds: why.kinds
+			};
 		}
 
 		return result;
@@ -108,17 +113,32 @@
 		return t.moveName + ": they timed it well (" + g.label.toLowerCase() + ").";
 	}
 
-	// What to do differently next time, for the player's own leaky throws
+	/*
+	* The engine's view of your throw, as a sentence. This is separate from the leak: a throw can leak free turns and still
+	* be what the simulator would do (it may be knocking them out, or its plan calls for it), and a clean throw can be
+	* one the simulator would have held for another reason. When the two disagree both are shown, never merged.
+	*/
 	function betterNext(t) {
-		if (!t.advice || t.actor !== 0) {
+		var e = t.engine;
+
+		if (t.actor !== 0 || !e || t.simultaneous) {
 			return "";
 		}
 
-		if (t.advice.action === "wait") {
-			return "Next time: tap " + pluralize(t.advice.waitFor.j, "more Fast Move") + " first, then throw.";
+		var leak = t.freeTurns > 0;
+		var why = e.headline ? " " + e.headline : "";
+
+		if (e.holds) {
+			var taps = e.waitTaps ? " It would have thrown after " + e.waitTaps + " more tap" + (e.waitTaps === 1 ? "" : "s") + "." : "";
+
+			return (leak ? "The simulator would have held here." : "No free turns, but the simulator would still have held.") + why + taps;
 		}
 
-		return "No better window was coming up. " + t.advice.reason;
+		if (e.otherMove) {
+			return "The simulator would have thrown " + e.otherMove + " instead." + why;
+		}
+
+		return leak ? "The simulator throws here too." + why : "";
 	}
 
 	function tally(list) {

@@ -59,7 +59,20 @@ This was measured against `Battle.js` rather than assumed. `tests/academy/engine
 
 ### Where the live prompts come from
 
-The Coach asks the engine rather than re-implementing it. At each of your action turns it hands `decideAction` the state it would see (cooldowns, energy and HP projected to that turn, restored afterward) and reads the answer and its reason from the engine's decision log. The "tap N more" countdown asks again after advancing your own Fast Moves, up to two. Checked in live battles with `tests/academy/advice-check.mjs`: when the player was tapping, the countdown was right 13 of 14 times, and the engine never said "throw" where the old coach model said "wait". Where the engine holds and the old model threw, the engine's reasons were timing, baiting, farming or saving for a bigger move. Two things still use the coach's own `TurnMath`: grading each throw after the fact and the "next time, tap N more" suggestion that goes with it, and the Academy quizzes. `engine-check.mjs` pins `TurnMath` to the engine, and `live-check.mjs` verifies the dead-turn rule from the engine's own step log (`Battle.getStepLog`).
+The Coach asks the engine rather than re-implementing it. `EngineAdvisor` hands `ActionLogic.decideAction` the state it would see (cooldowns, energy and HP projected to your next action turn, restored afterward) through a small stand-in battle object, and reads the answer and its reasons from the engine's own decision log. The "tap N more" countdown asks again after advancing your own Fast Moves, up to two.
+
+Every Charged Move is judged the same way at the moment it is thrown. `Battle` takes a plain-data snapshot just before anyone decides (cooldowns, queued Fast Moves, energy, HP, shields) and calls a throw observer, and `EngineAdvisor.review` asks the engine what it would have done from that snapshot. The Train Coach and the Battle page's Energy & Timing panel both register that observer. `TurnMath` still measures the leak (free turns, and what they are worth); whether you should have waited is the engine's call, and when the two disagree both are shown.
+
+`EngineReasons` turns the engine's decision lines into wording: baiting a shield, building to a bigger move, a farm-down plan, surviving, timing, form change and so on. It only says what the engine logged. For example, the engine's overfarm is a random chance when the matchup is decent and the opponent has Pokemon left; nothing in it ties that to a one-turn switch, so none is claimed. `enginereasons.test.mjs` reads every `logDecision` call in `ActionLogic.js` and fails if one stops matching a rule, so an upstream rewording shows up at merge time instead of as silently missing explanations. Your own bait holds come from your team's Bait Shields setting.
+
+How it is checked:
+
+- `engine-replay-check.mjs` (blocking): every Charged Move the AI throws in 487 simulated battles (2107 throws) replays through `EngineAdvisor.review` as the same throw. A deliberately wrong stand-in scores about 54%.
+- `review-lookahead-check.mjs`: the "it would have thrown after N more taps" claim against a real forced re-run. In 508 battles the engine's "throw here" matched the re-run 317 of 317 times, and 147 of 147 "N taps" answers were exact (cases where the opponent threw in the window are counted separately, not as misses).
+- `advice-check.mjs`: the live countdown and the projected state against what actually happened.
+- `live-check.mjs`: the dead-turn rule from the engine's own step log (`Battle.getStepLog`), and the displayed prompt against the observer's verdict on the same throw.
+
+Two things still use `TurnMath`: measuring the leak, which `engine-check.mjs` pins to the engine, and the Academy quizzes. The Niantic rule details behind the turn model (the T+2 timing and the faint rule) come from secondhand sources and the engine's own behavior, not from an official specification.
 
 ### Stay or swap
 

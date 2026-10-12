@@ -170,6 +170,35 @@
 		{ id: "loop", role: "internal", test: /considered too many states, likely an infinite loop/ }
 	];
 
+	// A few words for the banner on the battle window, by rule. Internal rules never show.
+	var SHORTS = {
+		"survive-hold": function () { return "no energy yet"; },
+		"survive-throw": function () { return "survival"; },
+		"break-ability": function () { return "break ability"; },
+		"timing": function () { return "better timing"; },
+		"form-change": function () { return "form change"; },
+		"form-energy": function () { return "energy before form"; },
+		"force-boost": function () { return "boost move"; },
+		"plan": function (m, extra) { return "plan: " + m[1] + (extra && extra.length ? " then " + extra[0] : ""); },
+		"ko-or-farm": function () { return "KO or farm-down"; },
+		"saving": function (m) { return "building to " + m[1]; },
+		"boost-plan": function () { return "needs the boost"; },
+		"farm-down": function () { return "farming"; },
+		"bait": function () { return "baiting a shield"; },
+		"debuff-defer": function () { return "debuff plan"; },
+		"debuff-stack": function () { return "debuff plan"; }
+	};
+
+	RULES.forEach(function (rule) {
+		if (rule.role !== "internal" && rule.id !== "plan-step" && rule.id !== "threat") {
+			if (!SHORTS[rule.id]) {
+				throw new Error("EngineReasons: rule " + rule.id + " has no short wording");
+			}
+
+			rule.short = SHORTS[rule.id];
+		}
+	});
+
 	function match(line) {
 		for (var i = 0; i < RULES.length; i++) {
 			var m = RULES[i].test.exec(line);
@@ -186,7 +215,8 @@
 	* Explain a decision from the lines the engine logged for it.
 	*   reasons - the log lines
 	*   who     - "you" or "they"
-	* Returns {headline, hold, notes, recognized}:
+	* Returns {short, headline, hold, notes, kinds, unknown}:
+	*   short    - a few words for the banner
 	*   headline - sentence for the decision itself, or "" if nothing decisive was logged
 	*   hold     - true if the decision is to keep tapping, false if it's a throw, null if unknown
 	*   notes    - context sentences, in the order the engine gave them, without repeats
@@ -239,7 +269,24 @@
 			}
 		});
 
+		// Banner wording: the decisive reason, else the first context reason that has one
+		var short = "";
+
+		if (final && final.rule.short) {
+			short = final.rule.short(final.m, final.rule.id === "plan" ? extra : null);
+		} else {
+			matched.some(function (h) {
+				if (h.rule.role === "context" && h.rule.short) {
+					short = h.rule.short(h.m);
+					return true;
+				}
+
+				return false;
+			});
+		}
+
 		return {
+			short: short,
 			headline: final ? final.rule.text(who, final.m, final.rule.id === "plan" ? extra : null) : "",
 			headlineId: final ? final.rule.id : null,
 			hold: final ? !!final.rule.hold : null,

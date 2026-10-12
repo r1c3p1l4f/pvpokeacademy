@@ -89,6 +89,10 @@ assert.match(await page.textContent('.summary-score'), /10 \/ 10/);
 await shot('summary');
 
 // Flashcards: reveal, mark missed, then replay missed only
+// The replay picks at random among every missed card, so start from an empty history to make the one missed here the only candidate
+await page.evaluate(() => localStorage.removeItem('academy.progress.v1'));
+await page.reload();
+await page.waitForSelector('.academy-modes a[data-mode="flashcards"]');
 await page.click('.academy-modes a[data-mode="flashcards"]');
 await page.waitForSelector('.academy-card:not(.hide)');
 assert.equal(await page.isVisible('.reveal-btn'), true);
