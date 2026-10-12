@@ -70,8 +70,16 @@
 	* Build the quiz pool from gamemaster data and ranking data.
 	* Each entry: {id, name, fast: {id, name, gain, turns}, charged: [{id, name, energy}], score}
 	* Only entries with a Fast Move and at least one Charged Move are kept.
+	*
+	* The pool is the top `limit` of the ranking, plus up to `megaExtra` Mega Pokemon from further down (within the first
+	* `megaScan`). Megas rarely rank in the top of the Great and Ultra Mega cups, so without this they would barely appear.
+	* Megas with a third Charged Move keep all three in `charged`.
 	*/
-	function buildPool(gmData, rankings, limit) {
+	function buildPool(gmData, rankings, limit, opts) {
+		opts = opts || {};
+
+		var megaExtra = opts.megaExtra === undefined ? 10 : opts.megaExtra;
+		var megaScan = opts.megaScan || 250;
 		var moves = {};
 		var species = {};
 
@@ -80,7 +88,24 @@
 
 		var pool = [];
 
-		(rankings || []).slice(0, limit || 80).forEach(function (r) {
+		var cutoff = limit || 80;
+		var extraLeft = megaExtra;
+		var chosen = (rankings || []).slice(0, megaScan).filter(function (r, i) {
+			if (i < cutoff) {
+				return true;
+			}
+
+			var info = species[r.speciesId];
+
+			if (extraLeft > 0 && info && (info.tags || []).indexOf("mega") > -1) {
+				extraLeft--;
+				return true;
+			}
+
+			return false;
+		});
+
+		chosen.forEach(function (r) {
 			var info = species[r.speciesId];
 			var set = r.moveset || [];
 			var fast = moves[set[0]];
@@ -99,6 +124,7 @@
 				id: r.speciesId,
 				name: r.speciesName,
 				types: info.types,
+				mega: (info.tags || []).indexOf("mega") > -1,
 				score: r.score,
 				fast: { id: fast.moveId, name: fast.name, gain: fast.energyGain, turns: fast.turns },
 				charged: charged.map(function (m) { return { id: m.moveId, name: m.name, energy: m.energy }; })
@@ -886,6 +912,7 @@
 	function Progress(storage) {
 		var store = storage || memoryStorage();
 		var state = { cards: {}, stats: {}, streak: 0, best: 0, total: 0, correct: 0, tick: 0 };
+		var scope = ""; // The format being played (league and cup). A card only replays in the format it was missed in.
 
 		function load() {
 			try {
@@ -953,7 +980,8 @@
 					state.streak = 0;
 				}
 
-				var card = state.cards[q.key] || { type: q.type, category: q.category, params: q.params, level: q.level, box: 0, seen: 0, right: 0, last: 0 };
+				var cardKey = scope ? scope + "#" + q.key : q.key;
+				var card = state.cards[cardKey] || { type: q.type, category: q.category, params: q.params, level: q.level, box: 0, seen: 0, right: 0, last: 0, scope: scope };
 
 				card.seen++;
 				card.last = state.tick;
@@ -965,15 +993,18 @@
 					card.box = 0;
 				}
 
-				state.cards[q.key] = card;
+				state.cards[cardKey] = card;
 				prune();
 				save();
 			},
 
+			// Cards are tracked per format; set it whenever the league or cup changes
+			setScope: function (value) { scope = value || ""; },
+
 			// Cards worth replaying: ever missed and not yet mastered
 			weakCards: function (categories) {
 				return Object.keys(state.cards).map(function (k) { return state.cards[k]; }).filter(function (c) {
-					return c.box < BOX_COUNT && c.seen > c.right && (!categories || categories.indexOf(c.category) > -1);
+					return c.box < BOX_COUNT && c.seen > c.right && (!categories || categories.indexOf(c.category) > -1) && (!scope || c.scope === scope);
 				});
 			},
 

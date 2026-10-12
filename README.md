@@ -76,6 +76,14 @@ How it is checked:
 
 Two things still use `TurnMath`: measuring the leak, which `engine-check.mjs` pins to the engine, and the Academy quizzes. The Niantic rule details behind the turn model (the T+2 timing and the faint rule) come from secondhand sources and the engine's own behavior, not from an official specification.
 
+### Leagues, cups and Megas
+
+The quiz format menu is the three open leagues plus every cup format in the gamemaster that has ranking data at its CP (the page checks which ranking files exist, so a cup with none is never offered). Each format builds its question pool from that cup's own rankings and runs the swap simulations under that cup, so the answers reflect the cup's meta: the same lead can be a stay in the open Great League and a swap in Mega Great.
+
+The pool is the top 70 of the ranking, plus up to 10 Mega Pokemon from further down. Megas rarely rank in the top 70 of the Great and Ultra Mega cups, so without this they would barely appear. The open leagues exclude Megas entirely, as the game does.
+
+Megas tagged `supermega` carry a third Charged Move. The pool keeps all three, and the swap simulations equip all three, so a count question and a stay-or-swap answer describe the same Pokemon. It changes results: with Outrage+ equipped, Mega Dragonite rates 488 instead of 600 against one Master League opponent in the Mega cup, and Mega Chesnaught 631 instead of 324 against another. Missed cards are remembered per format and only come back in the format they were missed in.
+
 ### Stay or swap
 
 Each scenario simulates your current Pokemon and each swap against the opposing lead, then applies written rules in `SwapScenarios.decide`: stay when winning, swap to the Pokemon that beats the lead, spend the weaker closer first when two answers are close, and stay and trade when nothing beats it. These rules judge the lead matchup and what a swap costs. They don't know the opponent's back line, so treat them as coaching heuristics rather than a solved game.
@@ -99,6 +107,7 @@ SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules
 SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/live-check.mjs
 SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/audit-check.mjs
 SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/mega-check.mjs
+SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/cups-check.mjs
 SITE_URL=http://127.0.0.1:8080/pvpoke/src/ PLAYWRIGHT_PATH=/path/to/node_modules/ node tests/academy/phone-check.mjs
 ```
 

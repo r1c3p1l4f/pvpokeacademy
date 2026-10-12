@@ -13,7 +13,7 @@ var InterfaceMaster = (function () {
 			var gm = GameMaster.getInstance();
 
 			var SETTINGS_KEY = "academy.settings";
-			var defaults = { league: 1500, level: 2, length: 10, categories: ["count", "history", "timing", "swap"], mode: "quiz", weakOnly: false };
+			var defaults = { format: "1500|all", level: 2, length: 10, categories: ["count", "history", "timing", "swap"], mode: "quiz", weakOnly: false };
 			var settings = $.extend({}, defaults);
 
 			var pool = null;
@@ -36,7 +36,6 @@ var InterfaceMaster = (function () {
 				progress = new QuizEngine.Progress(safeStorage());
 				loadSettings();
 				buildCategoryChips();
-				applySettingsToControls();
 
 				$(".academy-modes a").on("click", function (e) {
 					e.preventDefault();
@@ -44,7 +43,7 @@ var InterfaceMaster = (function () {
 				});
 
 				$(".academy-league").on("change", function () {
-					settings.league = parseInt($(this).val(), 10);
+					settings.format = $(this).val();
 					saveSettings();
 					loadLeague(startRound);
 				});
@@ -109,11 +108,105 @@ var InterfaceMaster = (function () {
 					settings.mode = hash;
 				}
 
-				loadLeague(function () {
-					$(".loading").hide();
-					setMode(settings.mode, true);
+				buildFormatSelect(function () {
+					applySettingsToControls();
+
+					loadLeague(function () {
+						$(".loading").hide();
+						setMode(settings.mode, true);
+					});
 				});
 			};
+
+			// ---------- Formats (league and cup) ----------
+
+			var OPEN_FORMATS = [
+				{ value: "1500|all", label: "Great League" },
+				{ value: "2500|all", label: "Ultra League" },
+				{ value: "10000|all", label: "Master League" }
+			];
+
+			// "1500|mega" -> {cp: 1500, cup: "mega"}
+			function parseFormat(value) {
+				var parts = String(value).split("|");
+
+				return { cp: parseInt(parts[0], 10) || 1500, cup: parts[1] || "all" };
+			}
+
+			function rankingFile(cp, cup) {
+				var data = gm.getCupById(cup);
+				var dir = data && data.rankingAlias ? data.rankingAlias : cup;
+
+				return webRoot + "data/rankings/" + dir + "/overall/rankings-" + cp + ".json?v=" + siteVersion;
+			}
+
+			/*
+			* The menu is the open leagues plus every cup format in the gamemaster that has ranking data at its CP.
+			* Which of those exist is found by asking the server, so a format without rankings is never offered.
+			*/
+			function buildFormatSelect(done) {
+				var $select = $(".academy-league").html("");
+				var $open = $('<optgroup label="Open leagues"></optgroup>');
+				var $cups = $('<optgroup label="Cups and formats"></optgroup>');
+				var seen = {};
+				var candidates = [];
+
+				OPEN_FORMATS.forEach(function (f) {
+					$open.append($("<option>").val(f.value).text(f.label));
+				});
+
+				((gm.data && gm.data.formats) || []).forEach(function (f) {
+					var key = f.cup + "|" + f.cp;
+
+					if (!f.cup || f.cup === "custom" || f.cup === "all" || !f.cp || seen[key] || !gm.getCupById(f.cup)) {
+						return;
+					}
+
+					seen[key] = true;
+					candidates.push({ value: f.cp + "|" + f.cup, label: f.title, cp: f.cp, cup: f.cup });
+				});
+
+				var pending = candidates.length;
+				var found = {};
+
+				function finish() {
+					candidates.forEach(function (c) {
+						if (found[c.value]) {
+							$cups.append($("<option>").val(c.value).text(c.label));
+						}
+					});
+
+					$select.append($open);
+
+					if ($cups.children().length) {
+						$select.append($cups);
+					}
+
+					if ($select.find("option[value='" + settings.format + "']").length === 0) {
+						settings.format = defaults.format;
+					}
+
+					done();
+				}
+
+				if (pending === 0) {
+					finish();
+
+					return;
+				}
+
+				candidates.forEach(function (c) {
+					$.ajax({ url: rankingFile(c.cp, c.cup), type: "HEAD" }).done(function () {
+						found[c.value] = true;
+					}).always(function () {
+						pending--;
+
+						if (pending === 0) {
+							finish();
+						}
+					});
+				});
+			}
 
 			function safeStorage() {
 				try {
@@ -135,6 +228,11 @@ var InterfaceMaster = (function () {
 					if (saved) {
 						settings = $.extend({}, defaults, saved);
 
+						// Earlier versions stored just the league's CP
+						if (!saved.format && saved.league) {
+							settings.format = saved.league + "|all";
+						}
+
 						if (!settings.categories || !settings.categories.length) {
 							settings.categories = defaults.categories.slice();
 						}
@@ -153,7 +251,7 @@ var InterfaceMaster = (function () {
 			}
 
 			function applySettingsToControls() {
-				$(".academy-league").val(settings.league);
+				$(".academy-league").val(settings.format);
 				$(".academy-level").val(settings.level);
 				$(".academy-length").val(settings.length);
 				$(".academy-weak").toggleClass("on", settings.weakOnly);
@@ -212,10 +310,13 @@ var InterfaceMaster = (function () {
 							return;
 						}
 
+						var format = parseFormat(settings.format);
+
 						pool = QuizEngine.buildPool(gm.data, data, 70);
+						progress.setScope(settings.format);
 
 						try {
-							SwapScenarios.init({ pool: pool, cp: settings.league, cup: "all" });
+							SwapScenarios.init({ pool: pool, cp: format.cp, cup: format.cup });
 
 							if (!swapReady) {
 								SwapScenarios.register(QuizEngine);
@@ -228,7 +329,7 @@ var InterfaceMaster = (function () {
 
 						callback();
 					}
-				}, "overall", settings.league, "all");
+				}, "overall", parseFormat(settings.format).cp, parseFormat(settings.format).cup);
 			}
 
 			// ---------- Modes ----------

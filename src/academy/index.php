@@ -37,11 +37,11 @@ require_once '../header.php';
 
 	<div class="academy-setup">
 		<div class="setup-group">
-			<label for="academy-league">League</label>
+			<label for="academy-league">League or cup</label>
 			<select id="academy-league" class="academy-league">
-				<option value="1500">Great League</option>
-				<option value="2500">Ultra League</option>
-				<option value="10000">Master League</option>
+				<option value="1500|all">Great League</option>
+				<option value="2500|all">Ultra League</option>
+				<option value="10000|all">Master League</option>
 			</select>
 		</div>
 		<div class="setup-group">

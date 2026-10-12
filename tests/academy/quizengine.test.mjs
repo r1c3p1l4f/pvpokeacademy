@@ -222,3 +222,36 @@ test('answer text uses singular units for 1', () => {
 	const q2 = QE.build('count.toCharged', { mon: pool[0].id, move: pool[0].charged[0].id, energy: 0 }, pool);
 	assert.match(QE.answerText(q2), /^\d+ Fast Moves?$/);
 });
+
+test('Mega cups pull Megas up from below the cutoff, and three-move Megas keep all three Charged Moves', () => {
+	const mega = JSON.parse(fs.readFileSync(path.join(src, 'data/rankings/mega/overall/rankings-1500.json'), 'utf8'));
+	const top = QE.buildPool(gm, mega, 70, { megaExtra: 0 });
+	const widened = QE.buildPool(gm, mega, 70);
+	const megasTop = top.filter(p => p.mega).length;
+	const megasWide = widened.filter(p => p.mega).length;
+	assert.ok(megasWide > megasTop && megasWide - megasTop <= 10, `megas ${megasTop} -> ${megasWide}`);
+	assert.equal(widened.length - top.length, megasWide - megasTop);
+	const malamar = widened.find(p => p.id === 'malamar_mega');
+	assert.equal(malamar.charged.length, 3);
+	assert.equal(widened.find(p => p.id === 'sableye_mega').charged.length, 2);
+	// The open cup has no Megas at all, so nothing is added
+	assert.equal(pool.filter(p => p.mega).length, 0);
+});
+
+test('Progress only replays a missed card in the format it was missed in', () => {
+	const prog = new QE.Progress();
+	const rng = QE.createRng(5);
+	const q = QE.generate(rng, pool, { categories: ['count'], level: 1 });
+	prog.setScope('1500|all');
+	prog.record(q, false);
+	assert.equal(prog.weakCards().length, 1);
+	assert.ok(prog.pickWeak(rng, ['count']));
+	prog.setScope('1500|mega');
+	assert.equal(prog.weakCards().length, 0);
+	assert.equal(prog.pickWeak(rng, ['count']), null);
+	// The same scenario can be missed separately in the other format
+	prog.record(q, false);
+	assert.equal(prog.weakCards().length, 1);
+	prog.setScope('1500|all');
+	assert.equal(prog.weakCards().length, 1);
+});

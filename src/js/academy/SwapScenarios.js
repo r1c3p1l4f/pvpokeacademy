@@ -193,6 +193,11 @@
 			poke.selectMove("charged", "none", 1);
 		}
 
+		// Mega Pokemon that carry a third Charged Move (selectMove routes index 2 to the extra move pool)
+		if (entry.charged[2]) {
+			poke.selectMove("charged", entry.charged[2].id, 2);
+		}
+
 		return poke;
 	}
 
@@ -531,6 +536,8 @@
 		evaluate: evaluate,
 		rate: rate,
 		makeParams: makeParams,
-		getWeaknesses: function (id) { return ctx && ctx.weak[id]; }
+		getWeaknesses: function (id) { return ctx && ctx.weak[id]; },
+		// The simulator Pokemon for a pool entry, as the sims use it (exposed so tests can check its loadout)
+		createPokemon: function (entry) { return createPokemon(entry, 0, newBattle()); }
 	};
 }));
