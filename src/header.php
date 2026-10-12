@@ -6,6 +6,11 @@ if (strpos($WEB_ROOT, 'src') !== false) {
     $SITE_VERSION = rand(1,1000) . '.' . rand(1,1000) . '.' . rand(1,1000);
 }
 
+// Academy-owned suffix, so a data or code update bumps every ?v= URL without touching upstream's version line above
+if(file_exists(__DIR__ . '/academy/version.txt')){
+    $SITE_VERSION .= '-' . trim(file_get_contents(__DIR__ . '/academy/version.txt'));
+}
+
 // A pinned version, for tests that need a stable service worker and cache
 if(getenv('SITE_VERSION_OVERRIDE') !== false){
     $SITE_VERSION = getenv('SITE_VERSION_OVERRIDE');
@@ -128,7 +133,7 @@ if(! isset($OG_IMAGE)){
 <meta name="apple-mobile-web-app-title" content="PvP Academy">
 <meta name="theme-color" content="#0d6684">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<link rel="manifest" href="<?php echo $WEB_ROOT; ?>data/manifest-academy.json?v=<?php echo $SITE_VERSION; ?>">
+<link rel="manifest" href="<?php echo $WEB_ROOT; ?>academy/manifest.json?v=<?php echo $SITE_VERSION; ?>">
 <link rel="apple-touch-icon" href="<?php echo $WEB_ROOT; ?>img/academy/apple-touch-icon.png">
 <?php else: ?>
 <meta name="apple-mobile-web-app-capable">

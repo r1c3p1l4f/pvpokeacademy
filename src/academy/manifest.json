@@ -1,9 +1,9 @@
 {
-  "id": "../academy/",
+  "id": "./",
   "name": "PvP Academy",
   "short_name": "PvP Academy",
   "description": "Practice counting Fast Moves, timing Charged Moves and stay-or-swap decisions for Pokemon GO trainer battles.",
-  "start_url": "../academy/",
+  "start_url": "./",
   "scope": "../",
   "display": "standalone",
   "orientation": "portrait",

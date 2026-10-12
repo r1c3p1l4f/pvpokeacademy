@@ -1,3 +1,4 @@
 src/modules/config.php
 src/articles/article-assets
 src-deploy/
+src/modules/config.local.php
