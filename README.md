@@ -118,19 +118,22 @@ Things to know when deploying:
 
 Upstream (`pvpoke/pvpoke`) changes often: rankings and gamemaster data most days, code now and then. The Academy is set up so that taking those changes does not cost any of its customizations.
 
-**What is whose.** `src/data/` is entirely upstream's: the Academy keeps nothing there, which is what makes a data refresh a straight restore. Everything the Academy adds is a new file (`src/js/academy/`, `src/academy/`, `src/img/academy/`, `scripts/academy/`, `tests/academy/`) or one of 14 small hooks in files upstream owns. Every hook is listed in `tests/academy/hooks.json`, and `hooks.test.mjs` fails if a merge drops one. Deployment settings go in an untracked `src/modules/config.local.php` (copy `config.local.example.php`), so uploads and merges never overwrite them. The Academy's own cache version is `src/academy/version.txt`, appended to upstream's `$SITE_VERSION`, so refreshing data bumps every `?v=` URL without editing upstream's version line.
+**What is whose.** `src/data/` is entirely upstream's: the Academy keeps nothing there. Everything the Academy adds is a new file (`src/js/academy/`, `src/academy/`, `src/img/academy/`, `scripts/academy/`, `tests/academy/`) or one of 14 small hooks in files upstream owns. Every hook is listed in `tests/academy/hooks.json`, and `hooks.test.mjs` fails if a merge drops one. Deployment settings go in an untracked `src/modules/config.local.php` (copy `config.local.example.php`; `src/modules/.gitignore` keeps it out of git, so upstream's `.gitignore` is untouched), so merges never overwrite them. The Academy's own cache version is `src/academy/version.txt`, appended to upstream's `$SITE_VERSION`, so an update bumps every `?v=` URL without editing upstream's version line.
 
-**Refreshing data only** (the common case, one command):
+**Every update is a merge**, data or code, and one script does it:
 
 ```
-scripts/academy/sync-upstream-data.sh --check    # what would change
-scripts/academy/sync-upstream-data.sh            # restore src/data from upstream (including files upstream deleted), bump the version
+git remote add upstream https://github.com/pvpoke/pvpoke      # once; the script adds it too if it is missing
+scripts/academy/update-from-upstream.sh --check                # what changed, which hook files changed, what would conflict
+scripts/academy/update-from-upstream.sh                        # merge, resolve src/data with upstream's side, bump the version, commit
 PLAYWRIGHT_PATH=/path/to/node_modules/ scripts/academy/run-gates.sh
 ```
 
-It refuses if upstream also changed code in the same range, because new data can need new code. In that case do a full merge. It stages but never commits. Afterwards, upload, bump nothing by hand, and purge the host's cache.
+It merges (not rebases, so history stays honest), takes upstream's side of any conflict in `src/data` and its deletions (that tree is upstream's), bumps `version.txt`, and tells you which upstream code files changed and which of those hold an Academy hook. If nothing else conflicts it commits. If something does, it leaves the merge open and lists the files: re-apply the hook, `git add`, run the gates, commit.
 
-**Taking upstream code** (periodic, reviewed): `git fetch upstream master`, then merge (not rebase, so history stays honest) into your branch, resolve any conflict by re-applying the hook it lists, and run the full gates. As a rehearsal, I took the branch back to upstream as it stood ten weeks earlier, re-applied the Academy's changes there, and merged the 98 upstream commits since (312 data files, 51 code files, including `Battle.js`, `ActionLogic.js` and `header.php`). It merged with no conflicts and produced exactly the current tree. A clean textual merge does not prove the engine still behaves the same, which is what the gates are for:
+Why a merge and not a copy of the data folder: I measured both on real upstream history. Of the 92 upstream commits in a ten-week stretch, only 20 touched data alone (15 more touched data plus `header.php`, which gets a version bump on most releases), and 57 touched other code, so a rule of "refresh data only when code is unchanged" would almost always refuse. And a copy-style sync records no ancestry: after syncing to the midpoint of that stretch, merging the upstream tip conflicted in 67 files, because the ranking files are single-line JSON and the merge base was stale. Through the merge script, both steps (midpoint, then tip) applied with no conflicts and left exactly the current tree plus the new version number.
+
+A clean textual merge does not prove the engine still behaves the same. That is what the gates are for:
 
 | Gate | Catches |
 |---|---|
@@ -143,6 +146,8 @@ It refuses if upstream also changed code in the same range, because new data can
 | `pwa-check`, `ui-check`, `phone-check`, `audit-check`, live/advice/lookahead checks | the install path, the quiz, the Coach and timing panel in a real browser |
 
 The tests choose their fixtures from the data (which Mega leads, which cups to open), so a refresh changes their picks instead of failing them. The measurements quoted in this README are a snapshot of the data at upstream commit `c15fb6f` (2026-10-09): the Dragonite ratings, the moveset-difference counts, the throw counts, the format count. They will drift as data changes and are not asserted anywhere.
+
+**Uploading.** After an update, or after any change you make yourself, bump `src/academy/version.txt` (the update script does it for merges; do it by hand for your own edits), upload, and purge the host's cache. Upload without "mirror with delete" (or exclude `config.local.php`): a mirror that deletes files missing from your local copy would remove the server's untracked `config.local.php` and with it your SiteGround settings.
 
 ### Tests
 
