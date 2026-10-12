@@ -75,48 +75,78 @@ await browser.close();
 const tapsBy = [[], []];
 result.rec.forEach(r => r.taps.forEach(a => tapsBy[a].push(r.turn - 1)));
 
-let deadTurnChecked = 0, deadTurnBad = 0, adviceChecked = 0, adviceBad = 0;
+/*
+* Dead-turn check, counted in real engine steps rather than turn numbers. In emulate mode the turn counter can run
+* backwards ("continue the same turn" when a throw shares a turn with the opponent's tap), so numbers mislead.
+*
+* After each of your Charged Moves, count the live (neutral) updates until the opponent acts. Normally that's 2: the
+* dead turn, then their tap. Throws that share a turn with an opponent tap (sneaks) and sequences that end in a faint
+* or swap are reported separately, because the engine handles those differently.
+*/
+let ordinaryChecked = 0, ordinaryBad = 0, sneakSeen = [], skipped = 0;
 const lines = [];
+const rec = result.rec;
 
-for (const t of result.throws) {
-	if (t.simultaneous) continue;
-	// Only your throws are checked: the opponent AI taps deterministically, while your own taps come from
-	// autotap and real-time input, which jitter by a turn or two and say nothing about the engine.
-	// The opponent's first action after your throw is a tap or a Charged Move of its own
-	const oppThrows = result.throws.filter(x => x.actor === 1).map(x => x.turn);
-	const nextAction = t.actor === 0 ? [...tapsBy[1], ...oppThrows].filter(x => x > t.turn).sort((a, b) => a - b)[0] : undefined;
-	if (nextAction !== undefined) {
-		deadTurnChecked++;
-		const delta = nextAction - t.turn;
-		// The in-flight tap is excluded: an opponent that tapped on the throw turn itself shows up at t.turn
-		if (delta !== 2) {
-			deadTurnBad++;
-			// Collapse the many updates dispatched while the charge minigame is suspended into one line per phase change
-			const around = [];
-			let last = '';
-			result.rec.filter(r => r.turn >= t.turn - 1 && r.turn <= t.turn + 6).forEach(r => {
-				const row = `update ${r.turn} ${r.phase} taps:${r.taps.join('') || '-'} cd:${r.cd.join('/')}`;
-				const key = r.turn + r.phase + r.taps.join('');
-				if (key !== last) around.push(row);
-				last = key;
-			});
-			const decisions = debugLines.filter(l => { const n = parseInt(l, 10); return n >= t.turn - 1 && n <= t.turn + 5; }).slice(0, 30);
-			lines.push(`DEAD-TURN T${t.turn}: opponent's next action at +${delta}, expected +2. Opp throws ${JSON.stringify(oppThrows)}.\n  ${around.join('\n  ')}\n  engine decisions:\n  ${decisions.join('\n  ') || '(none captured)'}`);
-		}
+function stepsToOppAction(startIndex) {
+	let steps = 0;
+
+	for (let i = startIndex; i < rec.length; i++) {
+		const r = rec[i];
+
+		if (r.phase === 'suspend_switch' || r.phase === 'game_over') return { outcome: 'faint-or-swap' };
+		if (r.phase.startsWith('suspend_charged')) return { outcome: 'other-charged', steps };
+		if (r.phase !== 'neutral') continue;
+
+		steps++;
+		if (r.taps.includes(1)) return { outcome: 'tap', steps };
+		if (steps > 8) return { outcome: 'none-seen', steps };
 	}
 
-	if (t.actor === 0) {
-		const shown = result.rec.find(r => r.turn === t.turn + 1); // pre-render class = advice shown while this turn was decided
-		if (shown) {
-			adviceChecked++;
-			const go = /\bgo\b/.test(shown.advice), wait = /\bwait\b/.test(shown.advice);
-			const ok = go ? t.rho <= 2 : (wait ? t.rho >= 3 : true);
-			if (!ok) { adviceBad++; lines.push(`ADVICE T${t.turn}: prompt "${shown.advice}" but graded rho=${t.rho} (${t.grade})`); }
-		}
+	return { outcome: 'ended' };
+}
+
+for (const t of result.throws) {
+	if (t.simultaneous || t.actor !== 0) continue;
+
+	// Find this throw's charge sequence, then the end of its animation, then count live steps from there
+	const charge = rec.findIndex(r => r.phase === 'suspend_charged_attack' && r.turn >= t.turn - 1 && r.turn <= t.turn + 1);
+	if (charge < 0) { skipped++; continue; }
+	const anim = rec.findIndex((r, i) => i > charge && r.phase === 'animating');
+	if (anim < 0) { skipped++; continue; }
+
+	const res = stepsToOppAction(anim + 1);
+
+	if (res.outcome === 'faint-or-swap' || res.outcome === 'other-charged' || res.outcome === 'ended') { skipped++; continue; }
+
+	if (t.sneak) {
+		sneakSeen.push(res.steps);
+		continue;
+	}
+
+	ordinaryChecked++;
+
+	if (res.steps !== 2) {
+		ordinaryBad++;
+		const nearby = rec.slice(Math.max(0, charge - 1), anim + 8).map(r => `update ${r.turn} ${r.phase} taps:${r.taps.join('') || '-'} cd:${r.cd.join('/')}`);
+		lines.push(`DEAD-TURN T${t.turn} (${t.grade}): opponent acted after ${res.steps} live steps, expected 2\n  ${nearby.join('\n  ')}`);
 	}
 }
 
-console.log(`throws ${result.throws.length}; dead-turn checks ${deadTurnChecked}, mismatches ${deadTurnBad}; advice checks ${adviceChecked}, mismatches ${adviceBad}`);
+const deadTurnChecked = ordinaryChecked, deadTurnBad = ordinaryBad;
+let adviceChecked = 0, adviceBad = 0;
+
+for (const t of result.throws) {
+	if (t.simultaneous || t.actor !== 0) continue;
+	const shown = rec.find(r => r.turn === t.turn + 1); // pre-render class = advice shown while this turn was decided
+	if (shown) {
+		adviceChecked++;
+		const go = /\bgo\b/.test(shown.advice), wait = /\bwait\b/.test(shown.advice);
+		const ok = go ? t.rho <= 2 : (wait ? t.rho >= 3 : true);
+		if (!ok) { adviceBad++; lines.push(`ADVICE T${t.turn}: prompt "${shown.advice}" but graded rho=${t.rho} (${t.grade})`); }
+	}
+}
+
+console.log(`throws ${result.throws.length}; ordinary dead-turn checks ${deadTurnChecked}, mismatches ${deadTurnBad}; sneak throws (live steps until they act): ${JSON.stringify(sneakSeen)}; skipped (faint/swap/other) ${skipped}; advice checks ${adviceChecked}, mismatches ${adviceBad}`);
 lines.forEach(l => console.log(l));
 console.log(errors.length ? 'PAGE ERRORS: ' + errors.join(' | ') : 'no page errors');
 process.exit(deadTurnBad || adviceBad || errors.length ? 1 : 0);
