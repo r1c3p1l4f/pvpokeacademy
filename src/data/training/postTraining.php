@@ -40,6 +40,13 @@ if(parse_url($origin, PHP_URL_HOST) !== $_SERVER['HTTP_HOST']){
 
 require_once '../../modules/config.php';
 
+if(! $TRAINING_DB_ENABLED){
+	$response -> result = 0;
+	$response -> error = 'Training data collection is off';
+	echo json_encode($response);
+	exit();
+}
+
 $mysqli = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME);
 $mysqli->set_charset('utf8');
 

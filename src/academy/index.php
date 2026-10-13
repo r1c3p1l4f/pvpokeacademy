@@ -142,4 +142,12 @@ require_once '../header.php';
 <script src="<?php echo $WEB_ROOT; ?>js/academy/Visuals.js?v=<?php echo $SITE_VERSION; ?>"></script>
 <script src="<?php echo $WEB_ROOT; ?>js/academy/QuizInterface.js?v=<?php echo $SITE_VERSION; ?>"></script>
 
+<script>
+	// Start the page. Upstream's pages are started by their Main.js (or, on a local copy, by the developer panel); the Academy
+	// has neither, so without this a site served from a normal root never loads its data.
+	$(function(){
+		GameMaster.getInstance();
+	});
+</script>
+
 <?php require_once '../footer.php'; ?>

@@ -8,6 +8,10 @@ $DB_HOST = 'localhost';
 $DB_USER = 'root';
 $DB_PASS = '';
 
+// Whether Train mode may post its anonymous results to the MySQL database above. On by default, as upstream has it. Turn it
+// off in config.local.php when there is no database: nothing else on the site uses MySQL.
+$TRAINING_DB_ENABLED = true;
+
 // Progressive web app (installable, offline-capable Academy). Off by default so the site behaves exactly as before.
 // Turn it on for a deployment served over HTTPS.
 $PWA_ENABLED = false;

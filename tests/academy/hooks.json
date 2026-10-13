@@ -128,7 +128,8 @@
       "why": "PWA flag and the untracked config.local.php include (ignored by src/modules/.gitignore, which is the Academy's own file)",
       "contains": [
         "$PWA_ENABLED",
-        "config.local.php"
+        "config.local.php",
+        "$TRAINING_DB_ENABLED"
       ]
     },
     {
@@ -137,6 +138,13 @@
       "contains": [
         "if (VERSION) {",
         "self.addEventListener('fetch'"
+      ]
+    },
+    {
+      "file": "src/data/training/postTraining.php",
+      "why": "Skip the database write when training data collection is off (no MySQL deployments)",
+      "contains": [
+        "$TRAINING_DB_ENABLED"
       ]
     }
   ]

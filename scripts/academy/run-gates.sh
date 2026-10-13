@@ -12,6 +12,7 @@
 #   cups-check                        cups added or removed, a cup gaining a team rule, borrowed-ranking bans
 #   mega-check                        gamemaster schema changes (supermega tag, third Charged Move)
 #   pwa-check                         the service worker and install path
+#   deploy-check                      the site as uploaded: excludes applied, served from a domain root, Academy boots
 #   live/advice/lookahead/audit/ui/phone   the Coach, the timing panel and the quiz in a real browser
 #
 # Some assertions encode today's data (specific cups and Pokemon). If one fails right after a data refresh, check whether
@@ -61,6 +62,7 @@ run audit-check node tests/academy/audit-check.mjs
 run ui-check node tests/academy/ui-check.mjs
 run phone-check node tests/academy/phone-check.mjs
 run pwa-check node tests/academy/pwa-check.mjs
+run deploy-check node tests/academy/deploy-check.mjs
 if [ "$QUICK" = 0 ]; then
 	run review-lookahead-check node tests/academy/review-lookahead-check.mjs
 	run advice-check node tests/academy/advice-check.mjs

@@ -6,7 +6,7 @@ This started as a passion project that went from “I wonder what this would loo
 
 ## Running PvPoke
 
-See the [Installation](https://github.com/pvpoke/pvpoke/wiki/Installation) section of the PvPoke Wiki.
+See the [Installation](https://github.com/pvpoke/pvpoke/wiki/Installation) section of the PvPoke Wiki. To put this version on a web host (SiteGround, including the optional MySQL setup), follow [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Site Structure
 
