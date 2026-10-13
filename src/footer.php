@@ -106,6 +106,15 @@
 		});
 
 		// Service worker handler
+		<?php if($PWA_ENABLED): ?>
+		// Absolute, versioned URL: it registers from any page depth, and a new site version is always a new worker
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker.register('<?php echo $WEB_ROOT; ?>service-worker.js?v=<?php echo $SITE_VERSION; ?>', { scope: '<?php echo $WEB_ROOT; ?>' })
+			  .catch(function(err) {
+				console.log("Service worker failed to register:", err)
+			  });
+		}
+		<?php else: ?>
 		if ('serviceWorker' in navigator) {
 			console.log("Attempting to register service worker");
 			navigator.serviceWorker.register('service-worker.js')
@@ -115,6 +124,7 @@
 				console.log("Service worker failed to register:", err)
 			  });
 		}
+		<?php endif; ?>
 
 		// disable mousewheel on a input number field when in focus
 		// (to prevent Chromium browsers change the value when scrolling)

@@ -65,6 +65,14 @@ var InterfaceMaster = (function () {
 				$(".team-method-select").on("change", selectTeamMethod);
 				$(".featured-team-select").on("change", selectFeaturedTeam);
 				$(".battle-btn").on("click", startBattle);
+
+				// Academy coach options
+				if(typeof Coach !== "undefined"){
+					Coach.populateModeSelect($(".coach-select"));
+					$(".coach-select").on("change", function(){
+						Coach.setMode($(this).val());
+					});
+				}
 				$(".lets-go-btn").on("click", startTournamentBattle);
 				$("a.return-to-setup").on("click", returnToSetup);
 				$("body").on("click", ".self .roster .pokemon", selectRosterPokemon);

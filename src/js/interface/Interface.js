@@ -66,6 +66,16 @@ var InterfaceMaster = (function () {
 				battle = new Battle();
 				battle.setCup("mega");
 
+				// Record Charged Move timing for the Energy & Timing audit
+				battle.setTrackThrows(true);
+
+				// Ask the simulator's own decision logic about each throw, as it happens
+				if(typeof EngineAdvisor !== "undefined"){
+					battle.setThrowObserver(function(poke, opp, move, snapshot){
+						return EngineAdvisor.review(poke, opp, move, snapshot);
+					});
+				}
+
 				pokeSearch.setBattle(battle);
 
 				$(".poke-select-container > .poke.single").each(function(index, value){
@@ -343,6 +353,12 @@ var InterfaceMaster = (function () {
 
 				for(var i = 0; i < pokeSelectors.length; i++){
 					pokeSelectors[i].update();
+				}
+
+				// Show energy and move timing details
+
+				if(typeof TimelineAudit !== "undefined"){
+					TimelineAudit.render(b);
 				}
 
 				// Show battle summary text

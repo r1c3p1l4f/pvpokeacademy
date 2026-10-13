@@ -6,6 +6,16 @@ if (strpos($WEB_ROOT, 'src') !== false) {
     $SITE_VERSION = rand(1,1000) . '.' . rand(1,1000) . '.' . rand(1,1000);
 }
 
+// Academy-owned suffix, so a data or code update bumps every ?v= URL without touching upstream's version line above
+if(file_exists(__DIR__ . '/academy/version.txt')){
+    $SITE_VERSION .= '-' . trim(file_get_contents(__DIR__ . '/academy/version.txt'));
+}
+
+// A pinned version, for tests that need a stable service worker and cache
+if(getenv('SITE_VERSION_OVERRIDE') !== false){
+    $SITE_VERSION = getenv('SITE_VERSION_OVERRIDE');
+}
+
 // Initialize settings object
 if(isset($_COOKIE['settings'])){
 	$_SETTINGS = json_decode($_COOKIE['settings']);
@@ -117,10 +127,20 @@ if(! isset($OG_IMAGE)){
 <meta property="og:description" content="<?php echo $META_DESCRIPTION; ?>" />
 <meta property="og:image" content="<?php echo $OG_IMAGE; ?>" />
 
+<?php if($PWA_ENABLED): ?>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PvP Academy">
+<meta name="theme-color" content="#0d6684">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<link rel="manifest" href="<?php echo $WEB_ROOT; ?>academy/manifest.json?v=<?php echo $SITE_VERSION; ?>">
+<link rel="apple-touch-icon" href="<?php echo $WEB_ROOT; ?>img/academy/apple-touch-icon.png">
+<?php else: ?>
 <meta name="apple-mobile-web-app-capable">
 <meta name="mobile-web-app-capable">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <link rel="manifest" href="<?php echo $WEB_ROOT; ?>data/manifest.json?v=3">
+<?php endif; ?>
 
 <!--
 <?php if(strpos($_SERVER['REQUEST_URI'], 'team-builder') !== false): ?>
@@ -142,6 +162,10 @@ if(! isset($OG_IMAGE)){
 
 <?php if(strpos($META_TITLE, 'Train') !== false || strpos($META_TITLE, 'Performers') !== false): ?>
 	<link rel="stylesheet" type="text/css" href="<?php echo $WEB_ROOT; ?>css/train.css?v=22">
+<?php endif; ?>
+
+<?php if(strpos($META_TITLE, 'Train') !== false || strpos($META_TITLE, 'Academy') !== false || strpos($_SERVER['REQUEST_URI'], 'battle') !== false): ?>
+	<link rel="stylesheet" type="text/css" href="<?php echo $WEB_ROOT; ?>css/academy.css?v=1">
 <?php endif; ?>
 
 <?php if(strpos($_SERVER['REQUEST_URI'], 'articles') !== false): ?>
@@ -218,7 +242,7 @@ if(! isset($OG_IMAGE)){
 
 </head>
 
-<body <?php if($_SETTINGS->colorblindMode == 1): ?>class="colorblind"<?php endif; ?>>
+<body data-theme="<?php echo htmlspecialchars($_SETTINGS->theme); ?>" <?php if($_SETTINGS->colorblindMode == 1): ?>class="colorblind"<?php endif; ?>>
 
 	<?php  if(false): // Removing this but saving code for future use ?>
 		<?php if(strpos($_SERVER['REQUEST_URI'], 'twilight-trails') == false): ?>
@@ -275,12 +299,13 @@ if(! isset($OG_IMAGE)){
 					</div>
 					<a class="icon-team <?php if(strpos($_SERVER['REQUEST_URI'], '/team-builder/')): echo "selected"; endif; ?>" href="<?php echo $WEB_ROOT; ?>team-builder/">Team Builder</a>
 					<div class="parent-menu">
-						<a class="icon-train <?php if(strpos($_SERVER['REQUEST_URI'], '/train/')): echo "selected"; endif; ?>" href="<?php echo $WEB_ROOT; ?>train/">
+						<a class="icon-train <?php if(strpos($_SERVER['REQUEST_URI'], '/train/') || strpos($_SERVER['REQUEST_URI'], '/academy/')): echo "selected"; endif; ?>" href="<?php echo $WEB_ROOT; ?>train/">
 							Train <span></span>
 						</a>
 						<div class="submenu">
 							<div class="submenu-wrap">
 								<a href="<?php echo $WEB_ROOT; ?>train/analysis/">Top Performers</a>
+								<a href="<?php echo $WEB_ROOT; ?>academy/">Academy</a>
 							</div>
 						</div>
 					</div>

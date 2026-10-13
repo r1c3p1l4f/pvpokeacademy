@@ -1,0 +1,21 @@
+# Files that must not be uploaded to a public server (rsync --exclude-from format, paths relative to src/).
+#
+# write.php lets anyone who can reach it overwrite ranking and override files with arbitrary JSON; upstream says in the file
+# itself that it "really, really, really doesn't belong in production". The rest are build and developer tools that only make
+# sense on a local copy. getTraining.php is upstream's aggregator for the training database and nothing on the site calls it.
+/data/write.php
+/data/compile.php
+/data/parse.php
+/data/parseElite.php
+/data/parseEvolution.php
+/data/parseMoveCost.php
+/data/parseMoves.php
+/data/movesets.php
+/data/overrideEditor.php
+/data/training/getTraining.php
+/ranker.php
+/rankersandbox.php
+
+# Never copy the local settings over the server's, and never upload the server's secrets anywhere
+/modules/config.local.php
+.DS_Store

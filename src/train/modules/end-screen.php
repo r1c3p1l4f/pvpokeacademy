@@ -7,6 +7,7 @@
 				<a href="damage" class="tab">Damage</a>
 				<a href="shields" class="tab">Shields</a>
 				<a href="energy" class="tab">Energy</a>
+				<a href="timing" class="tab">Timing</a>
 			</div>
 			
 			<div class="tab-content-container">
@@ -133,6 +134,7 @@
 						</tr>
 					</table>
 				</div><!--end shield section-->
+				<div class="tab-section timing"></div>
 			</div>	
 		</div><!--end tab content container-->
 

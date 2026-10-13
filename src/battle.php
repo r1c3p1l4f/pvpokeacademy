@@ -88,6 +88,11 @@ require_once 'header.php';
 			<div class="disclaimer">* Results may differ from actual gameplay depending on connectivity, device, player decisions, or other factors.</div>
 		</div>
 		<div class="summary section white"></div>
+		<div class="timing-audit section white hide">
+			<h3>Energy &amp; Timing</h3>
+			<p class="audit-intro">Energy over the battle, your Fast Move count to each Charged Move, and how well each Charged Move was timed. Try Sandbox Mode to place throws yourself and see what bad timing costs. <a href="<?php echo $WEB_ROOT; ?>academy/" class="inline-link">Practice counting in the Academy</a>.</p>
+			<div class="audit-body"></div>
+		</div>
 		<div class="tip automated">Hover over or tap the timeline for details. <a href="<?php echo $WEB_ROOT; ?>articles/strategy/guide-to-fast-move-registration/">Read more</a> about the timeline.</div>
 		<div class="tip sandbox">Click the circles to edit actions.</div>
 	</div>
@@ -481,6 +486,11 @@ require_once 'header.php';
 
 <script src="<?php echo $WEB_ROOT; ?>js/GameMaster.js?v=<?php echo $SITE_VERSION; ?>"></script>
 <script src="<?php echo $WEB_ROOT; ?>js/pokemon/Pokemon.js?v=<?php echo $SITE_VERSION; ?>"></script>
+<script src="<?php echo $WEB_ROOT; ?>js/academy/TurnMath.js?v=<?php echo $SITE_VERSION; ?>"></script>
+<script src="<?php echo $WEB_ROOT; ?>js/academy/EngineReasons.js?v=<?php echo $SITE_VERSION; ?>"></script>
+<script src="<?php echo $WEB_ROOT; ?>js/academy/EngineAdvisor.js?v=<?php echo $SITE_VERSION; ?>"></script>
+<script src="<?php echo $WEB_ROOT; ?>js/academy/TimingFeedback.js?v=<?php echo $SITE_VERSION; ?>"></script>
+<script src="<?php echo $WEB_ROOT; ?>js/academy/TimelineAudit.js?v=<?php echo $SITE_VERSION; ?>"></script>
 <script src="<?php echo $WEB_ROOT; ?>js/interface/Interface.js?v=<?php echo $SITE_VERSION; ?>"></script>
 <script src="<?php echo $WEB_ROOT; ?>js/interface/PokeSearch.js?v=<?php echo $SITE_VERSION; ?>"></script>
 <script src="<?php echo $WEB_ROOT; ?>js/interface/PokeSelect.js?v=<?php echo $SITE_VERSION; ?>"></script>

@@ -1,0 +1,1288 @@
+/*
+* Academy styles: Coach HUD (Train), timing audit (Battle), and the Academy quiz page.
+* Plain CSS, loaded by header.php on Train, Battle and Academy pages.
+*/
+
+:root {
+	--ac-perfect: #1f9d55;
+	--ac-good: #3aa655;
+	--ac-minor: #d98a00;
+	--ac-bad: #d6382b;
+	--ac-wait: #2563c9;
+	--ac-ink: #1c2430;
+	--ac-muted: #5b6676;
+	--ac-line: #d5dbe4;
+	--ac-card: rgba(255, 255, 255, 0.95);
+	--ac-card-alt: #eef2f7;
+	--ac-energy: #aecb28;
+	--ac-accent: #ed4f34;
+	--tl-me: #d3e5fb;
+	--tl-me-strong: #8fbdf3;
+	--tl-opp: #fbddd6;
+	--tl-opp-strong: #f1a595;
+	--tl-throw: #ffd23f;
+}
+
+body[data-theme="night"] {
+	--tl-me: #1d3659;
+	--tl-me-strong: #3d6fb3;
+	--tl-opp: #4a2620;
+	--tl-opp-strong: #a8473a;
+	--ac-ink: #e6edf7;
+	--ac-muted: #9fb0c6;
+	--ac-line: #2d3d57;
+	--ac-card: rgba(16, 27, 46, 0.96);
+	--ac-card-alt: #1b2b47;
+	--ac-perfect: #43c47a;
+	--ac-good: #5fcf86;
+	--ac-minor: #f0a92b;
+	--ac-bad: #ff6b5e;
+	--ac-wait: #6ea2ff;
+}
+
+body[data-theme="night"] .coach-advice.go,
+body[data-theme="night"] .counter.ready {
+	background: #12382a;
+}
+
+body[data-theme="night"] .coach-advice.wait {
+	background: #14284d;
+}
+
+body[data-theme="night"] .coach-advice.warn,
+body[data-theme="night"] .tip-line {
+	background: #43320d;
+}
+
+body[data-theme="night"] .tip-line.bad {
+	background: #4a1d19;
+}
+
+body[data-theme="night"] .energy-bar {
+	background: #2a3b57;
+}
+
+/* ---------- Coach panel (Train) ---------- */
+
+.coach-panel {
+	display: none;
+	box-sizing: border-box;
+	width: 360px;
+	max-width: 100%;
+	margin: 12px auto 0;
+	padding: 10px 12px;
+	background: var(--ac-card);
+	color: var(--ac-ink);
+	border-radius: 8px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+	text-align: left;
+	font-size: 13px;
+	line-height: 1.35;
+	cursor: default;
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+body:not(.battle-active) .coach-panel {
+	display: none !important;
+}
+
+.coach-panel .coach-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 6px;
+}
+
+.coach-panel .coach-title {
+	font-weight: bold;
+	text-transform: uppercase;
+	font-size: 12px;
+	letter-spacing: 0.06em;
+	color: var(--ac-accent);
+}
+
+.coach-panel .coach-mode-switch {
+	flex: 1;
+	min-width: 0;
+	font-size: 12px;
+	padding: 2px 4px;
+}
+
+.coach-panel .coach-turn {
+	font-size: 13px;
+	font-weight: bold;
+	color: var(--ac-ink);
+	white-space: nowrap;
+}
+
+.coach-advice {
+	padding: 7px 9px;
+	border-radius: 6px;
+	margin-bottom: 8px;
+	background: var(--ac-card-alt);
+	border-left: 5px solid var(--ac-muted);
+}
+
+.coach-advice.go {
+	background: #e3f5e9;
+	border-left-color: var(--ac-perfect);
+}
+
+.coach-advice.wait {
+	background: #e3edfb;
+	border-left-color: var(--ac-wait);
+}
+
+.coach-advice.warn {
+	background: #fdf1da;
+	border-left-color: var(--ac-minor);
+}
+
+.coach-side {
+	margin-bottom: 8px;
+}
+
+.coach-side .side-title {
+	font-weight: bold;
+}
+
+.coach-side .side-title small {
+	font-weight: normal;
+	color: var(--ac-muted);
+	margin-left: 4px;
+}
+
+.coach-side.opp {
+	padding-top: 6px;
+	border-top: 1px dashed var(--ac-line);
+}
+
+.energy-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 3px 0;
+}
+
+.energy-row .label {
+	width: 28px;
+	font-size: 11px;
+	color: var(--ac-muted);
+}
+
+.energy-row .value {
+	width: 26px;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	font-weight: bold;
+}
+
+.energy-bar {
+	position: relative;
+	flex: 1;
+	height: 12px;
+	background: #dfe5ec;
+	border-radius: 6px;
+	overflow: visible;
+}
+
+.energy-bar .fill {
+	height: 100%;
+	background: var(--ac-energy);
+	border-radius: 6px;
+	transition: width 0.2s linear;
+}
+
+.energy-bar .tick {
+	position: absolute;
+	top: -3px;
+	bottom: -3px;
+	width: 2px;
+	margin-left: -1px;
+	background: var(--ac-ink);
+	opacity: 0.55;
+}
+
+.counter-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.counter {
+	padding: 1px 6px;
+	border-radius: 10px;
+	background: var(--ac-card-alt);
+	border: 1px solid var(--ac-line);
+	font-size: 12px;
+}
+
+.counter.ready {
+	background: #e3f5e9;
+	border-color: var(--ac-perfect);
+}
+
+.tap-count {
+	margin-top: 3px;
+	font-size: 14px;
+}
+
+.tap-count b {
+	font-size: 20px;
+	color: var(--ac-accent);
+}
+
+/* Throw log, used on the live panel and the end screen */
+
+.coach-log {
+	list-style: none;
+	margin: 6px 0 0;
+	padding: 0;
+}
+
+.coach-log li {
+	display: flex;
+	gap: 6px;
+	padding: 4px 0;
+	border-top: 1px solid var(--ac-line);
+	font-size: 12px;
+}
+
+.coach-log li .icon {
+	flex: 0 0 18px;
+	height: 18px;
+	border-radius: 50%;
+	text-align: center;
+	line-height: 18px;
+	font-weight: bold;
+	color: #fff;
+	background: var(--ac-perfect);
+}
+
+.coach-log li.good .icon {
+	background: var(--ac-good);
+}
+
+.coach-log li.minor .icon {
+	background: var(--ac-minor);
+}
+
+.coach-log li.bad .icon {
+	background: var(--ac-bad);
+}
+
+.coach-log li.actor-1 {
+	opacity: 0.85;
+	font-style: italic;
+}
+
+.coach-log small {
+	color: var(--ac-muted);
+	font-weight: bold;
+}
+
+/* End screen Timing tab */
+
+.end-screen-container .tabs a.tab {
+	flex: 1;
+	width: auto;
+}
+
+.end-screen-container .tabs a.tab[href="timing"] {
+	color: #2563c9;
+}
+
+.end-screen-container .tabs a.tab[href="timing"].active {
+	background: #2563c9;
+	color: #eee;
+}
+
+.timing-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 8px 0;
+}
+
+.timing-summary .stat {
+	flex: 1 1 40%;
+	padding: 6px;
+	background: var(--ac-card-alt);
+	border-radius: 6px;
+	text-align: center;
+}
+
+.timing-summary .stat b {
+	display: block;
+	font-size: 18px;
+}
+
+.timing-summary .stat span {
+	font-size: 11px;
+	color: var(--ac-muted);
+}
+
+.tip-line {
+	margin: 6px 0;
+	padding: 6px 8px;
+	border-left: 4px solid var(--ac-minor);
+	background: #fdf1da;
+	font-size: 12px;
+	text-align: left;
+}
+
+.tip-line.bad {
+	border-left-color: var(--ac-bad);
+	background: #fbe6e3;
+}
+
+.opp-line {
+	font-size: 12px;
+	text-align: left;
+}
+
+.coach-help {
+	font-size: 12px;
+	text-align: left;
+	margin: 4px 0;
+}
+
+/* ---------- Timing audit (Battle) ---------- */
+
+.timing-audit.section.white {
+	background: var(--ac-card);
+	color: var(--ac-ink);
+	text-align: left;
+}
+
+.timing-audit h3 {
+	margin-top: 0;
+}
+
+.timing-audit h4 {
+	margin: 18px 0 6px;
+}
+
+.timing-audit .audit-intro {
+	font-size: 14px;
+}
+
+.audit-headline {
+	padding: 8px 10px;
+	border-left: 5px solid var(--ac-perfect);
+	background: var(--ac-card-alt);
+	border-radius: 4px;
+}
+
+.audit-headline.leaky {
+	border-left-color: var(--ac-bad);
+}
+
+.audit-chart {
+	display: block;
+	width: 100%;
+	height: auto;
+	margin-top: 10px;
+}
+
+.audit-chart .grid {
+	stroke: var(--ac-line);
+	stroke-width: 1;
+}
+
+.audit-chart .axis {
+	font-size: 10px;
+	fill: var(--ac-muted);
+}
+
+.audit-chart .line {
+	fill: none;
+	stroke-width: 2;
+	stroke-linejoin: round;
+}
+
+.audit-chart .line.self,
+.audit-legend .self::before {
+	stroke: #2f7de1;
+	background: #2f7de1;
+}
+
+.audit-chart .line.opp,
+.audit-legend .opp::before {
+	stroke: #ed4f34;
+	background: #ed4f34;
+}
+
+.audit-chart .cost.self {
+	stroke: #2f7de1;
+	stroke-dasharray: 3 4;
+	opacity: 0.55;
+}
+
+.audit-chart .marker {
+	stroke: var(--ac-card);
+	stroke-width: 2;
+	fill: var(--ac-perfect);
+}
+
+.audit-chart .marker.good {
+	fill: var(--ac-good);
+}
+
+.audit-chart .marker.minor {
+	fill: var(--ac-minor);
+}
+
+.audit-chart .marker.bad {
+	fill: var(--ac-bad);
+}
+
+.audit-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 14px;
+	font-size: 12px;
+	color: var(--ac-muted);
+	margin-top: 4px;
+}
+
+.audit-legend span::before {
+	content: "";
+	display: inline-block;
+	width: 14px;
+	height: 3px;
+	margin-right: 5px;
+	vertical-align: middle;
+}
+
+.audit-legend .dash::before {
+	display: none;
+}
+
+.audit-counts {
+	margin: 4px 0;
+	font-size: 14px;
+}
+
+.audit-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 13px;
+}
+
+.audit-table th {
+	text-align: left;
+	font-size: 11px;
+	text-transform: uppercase;
+	color: var(--ac-muted);
+	border-bottom: 2px solid var(--ac-line);
+	padding: 4px 6px;
+}
+
+.audit-table td {
+	padding: 4px 6px;
+	border-bottom: 1px solid var(--ac-line);
+	vertical-align: top;
+}
+
+.audit-table tr.actor-1 td {
+	font-style: italic;
+}
+
+.audit-table tr.explain td {
+	font-size: 12px;
+	font-style: normal;
+	color: var(--ac-muted);
+	border-bottom: 1px solid var(--ac-line);
+}
+
+.count-sheet tr.opp td:first-child {
+	border-left: 3px solid #ed4f34;
+}
+
+.count-sheet tr.self td:first-child {
+	border-left: 3px solid #2f7de1;
+}
+
+.chip {
+	display: inline-block;
+	padding: 1px 8px;
+	border-radius: 10px;
+	color: #fff;
+	font-size: 12px;
+	font-weight: bold;
+	background: var(--ac-perfect);
+}
+
+.chip.good {
+	background: var(--ac-good);
+}
+
+.chip.minor {
+	background: var(--ac-minor);
+}
+
+.chip.bad {
+	background: var(--ac-bad);
+}
+
+.audit-note {
+	font-size: 12px;
+	color: var(--ac-muted);
+}
+
+/* Charged Move rings on the main timeline */
+
+.timeline .item.audit-perfect,
+.timeline .item.audit-good {
+	box-shadow: 0 0 0 3px var(--ac-perfect);
+}
+
+.timeline .item.audit-minor {
+	box-shadow: 0 0 0 3px var(--ac-minor);
+}
+
+.timeline .item.audit-bad {
+	box-shadow: 0 0 0 3px var(--ac-bad);
+}
+
+@media (max-width: 480px) {
+	.audit-table {
+		font-size: 12px;
+	}
+
+	.audit-table th,
+	.audit-table td {
+		padding: 3px 4px;
+	}
+}
+
+/* ---------- Academy page ---------- */
+
+.academy .hide,
+.academy-stage .hide {
+	display: none !important;
+}
+
+.section.academy,
+.section.academy-stage,
+.section.academy-links {
+	background: var(--ac-card);
+	color: var(--ac-ink);
+	text-align: left;
+}
+
+.academy-modes {
+	float: none;
+	display: flex;
+	justify-content: flex-end;
+	gap: 4px;
+}
+
+.academy .description {
+	margin-top: 0;
+}
+
+.cheat-sheet {
+	margin: 10px 0 14px;
+	padding: 8px 12px;
+	background: var(--ac-card-alt);
+	border-radius: 6px;
+	font-size: 14px;
+}
+
+.cheat-sheet summary {
+	cursor: pointer;
+	font-weight: bold;
+}
+
+.cheat-table {
+	width: 100%;
+	margin: 8px 0;
+}
+
+.cheat-table td {
+	padding: 4px 8px;
+	border-bottom: 1px solid var(--ac-line);
+}
+
+.academy-setup {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px 18px;
+	align-items: flex-end;
+	margin: 10px 0;
+}
+
+.academy-setup .setup-group {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.academy-setup label {
+	font-size: 12px;
+	font-weight: bold;
+	color: var(--ac-muted);
+	text-transform: uppercase;
+}
+
+.academy-setup select {
+	min-width: 140px;
+}
+
+.academy-categories {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+	gap: 8px;
+}
+
+.cat-chip {
+	display: block;
+	text-align: left;
+	padding: 8px 10px;
+	border: 2px solid var(--ac-line);
+	border-radius: 8px;
+	background: var(--ac-card);
+	color: var(--ac-ink);
+	cursor: pointer;
+	font: inherit;
+}
+
+.cat-chip b {
+	display: block;
+	font-size: 14px;
+}
+
+.cat-chip span {
+	display: block;
+	font-size: 12px;
+	color: var(--ac-muted);
+	margin-top: 2px;
+}
+
+.cat-chip.on {
+	border-color: var(--ac-wait);
+	background: var(--ac-card-alt);
+}
+
+.academy-card .card-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	font-size: 12px;
+	color: var(--ac-muted);
+}
+
+.category-badge,
+.replay-badge {
+	padding: 2px 9px;
+	border-radius: 10px;
+	font-weight: bold;
+	color: #fff;
+	background: var(--ac-muted);
+}
+
+.category-badge[data-cat="count"] { background: #2f7de1; }
+.category-badge[data-cat="history"] { background: #8a56d6; }
+.category-badge[data-cat="timing"] { background: #e07b00; }
+.category-badge[data-cat="swap"] { background: #1f9d55; }
+.replay-badge { background: var(--ac-bad); }
+
+.card-streak {
+	margin-left: auto;
+	font-weight: bold;
+	color: var(--ac-accent);
+}
+
+.card-prompt {
+	font-size: 18px;
+	line-height: 1.45;
+	margin: 12px 0;
+}
+
+.card-facts {
+	width: 100%;
+	margin: 0 0 12px;
+	font-size: 13px;
+}
+
+.card-facts td {
+	padding: 3px 8px;
+	border-bottom: 1px solid var(--ac-line);
+}
+
+.card-facts td.label {
+	font-weight: bold;
+	width: 38%;
+}
+
+.card-input {
+	margin: 12px 0;
+}
+
+.card-input.needs-answer {
+	animation: ac-shake 0.3s;
+}
+
+@keyframes ac-shake {
+	25% { transform: translateX(-5px); }
+	75% { transform: translateX(5px); }
+}
+
+.number-field {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.number-field input {
+	width: 90px;
+	font-size: 22px;
+	padding: 6px 8px;
+	text-align: center;
+	border: 2px solid var(--ac-line);
+	border-radius: 6px;
+	background: var(--ac-card);
+	color: var(--ac-ink);
+}
+
+.number-field span {
+	color: var(--ac-muted);
+}
+
+.option-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.multi-hint {
+	margin: 0 0 6px;
+	font-size: 13px;
+	color: var(--ac-muted);
+}
+
+.option {
+	padding: 8px 14px;
+	font: inherit;
+	border: 2px solid var(--ac-line);
+	border-radius: 8px;
+	background: var(--ac-card);
+	color: var(--ac-ink);
+	cursor: pointer;
+}
+
+.option.selected {
+	border-color: var(--ac-wait);
+	background: var(--ac-card-alt);
+	font-weight: bold;
+}
+
+.option.is-answer {
+	border-color: var(--ac-perfect);
+	background: #e3f5e9;
+	color: #1c2430;
+	font-weight: bold;
+}
+
+.option.is-wrong {
+	border-color: var(--ac-bad);
+	background: #fbe6e3;
+	color: #1c2430;
+}
+
+.card-input.static .option {
+	cursor: default;
+}
+
+.card-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+	margin-top: 8px;
+}
+
+.card-actions .button {
+	min-width: 140px;
+}
+
+.self-grade {
+	display: flex;
+	gap: 10px;
+}
+
+.card-feedback {
+	margin-top: 14px;
+	padding: 12px 14px;
+	border-left: 6px solid var(--ac-muted);
+	border-radius: 6px;
+	background: var(--ac-card-alt);
+}
+
+.card-feedback.correct {
+	border-left-color: var(--ac-perfect);
+}
+
+.card-feedback.wrong {
+	border-left-color: var(--ac-bad);
+}
+
+.card-feedback .verdict {
+	font-size: 18px;
+	font-weight: bold;
+}
+
+.card-feedback.correct .verdict {
+	color: var(--ac-perfect);
+}
+
+.card-feedback.wrong .verdict {
+	color: var(--ac-bad);
+}
+
+.card-feedback .expected {
+	font-weight: bold;
+	margin: 6px 0;
+}
+
+.card-feedback .explain {
+	margin: 6px 0;
+	line-height: 1.5;
+}
+
+/* Diagrams */
+
+.timing-visual {
+	display: block;
+	width: 100%;
+	max-width: 760px;
+	height: auto;
+	margin-top: 10px;
+}
+
+.tl-cell {
+	fill: var(--ac-card-alt);
+	stroke: var(--ac-line);
+	stroke-width: 1;
+}
+
+.tl-cell.me { fill: var(--tl-me); }
+.tl-cell.me.tap { fill: var(--tl-me-strong); }
+.tl-cell.opp { fill: var(--tl-opp); }
+.tl-cell.opp.tap { fill: var(--tl-opp-strong); }
+.tl-cell.me.throw { fill: var(--tl-throw); stroke: var(--ac-ink); stroke-width: 2; }
+.tl-cell.me.dead,
+.tl-cell.opp.skipped { fill: var(--ac-card); stroke-dasharray: 3 2; }
+
+.tl-glyph { font-size: 11px; fill: var(--ac-ink); }
+.tl-lane { font-size: 12px; font-weight: bold; fill: var(--ac-ink); }
+.tl-axis { font-size: 10px; fill: var(--ac-muted); }
+.tl-note { font-size: 12px; fill: var(--ac-ink); }
+.tl-throw { stroke: var(--ac-ink); stroke-width: 1.5; stroke-dasharray: 4 3; }
+
+.tl-key {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	font-size: 12px;
+	color: var(--ac-muted);
+	margin-top: 4px;
+}
+
+.pip-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 10px;
+}
+
+.pip {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	min-width: 34px;
+	padding: 2px 5px;
+	border-radius: 6px;
+	background: var(--ac-card);
+	border: 1px solid var(--ac-line);
+	font-size: 13px;
+	font-weight: bold;
+}
+
+.pip small {
+	font-size: 10px;
+	font-weight: normal;
+	color: var(--ac-muted);
+}
+
+.pip.ready {
+	background: #e3f5e9;
+	border-color: var(--ac-perfect);
+	color: #1c2430;
+}
+
+.pip.goal {
+	border-style: dashed;
+	color: var(--ac-accent);
+}
+
+/* Summary and progress */
+
+.summary-score {
+	font-size: 28px;
+	font-weight: bold;
+	margin: 6px 0 12px;
+}
+
+.stat-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 6px 0;
+	font-size: 14px;
+}
+
+.stat-label {
+	flex: 0 0 150px;
+}
+
+.stat-bar {
+	flex: 1;
+	height: 12px;
+	background: var(--ac-card-alt);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.stat-bar .fill {
+	display: block;
+	height: 100%;
+	background: var(--ac-perfect);
+}
+
+.stat-value {
+	flex: 0 0 110px;
+	text-align: right;
+	color: var(--ac-muted);
+	font-size: 12px;
+}
+
+.missed-item {
+	padding: 8px 0;
+	border-top: 1px solid var(--ac-line);
+}
+
+.missed-item p {
+	margin: 2px 0;
+}
+
+.missed-item .a {
+	font-weight: bold;
+	color: var(--ac-perfect);
+}
+
+.summary-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-top: 14px;
+}
+
+.progress-stats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-bottom: 14px;
+}
+
+.progress-stats .tile {
+	flex: 1 1 110px;
+	padding: 10px;
+	text-align: center;
+	background: var(--ac-card-alt);
+	border-radius: 8px;
+}
+
+.progress-stats .tile b {
+	display: block;
+	font-size: 24px;
+}
+
+.progress-stats .tile span {
+	font-size: 12px;
+	color: var(--ac-muted);
+}
+
+.progress-note {
+	font-size: 12px;
+	color: var(--ac-muted);
+}
+
+@media (max-width: 600px) {
+	.card-prompt {
+		font-size: 16px;
+	}
+
+	.stat-label {
+		flex-basis: 100px;
+	}
+
+	.stat-value {
+		flex-basis: 80px;
+	}
+
+	.academy-modes {
+		justify-content: flex-start;
+	}
+}
+
+/* ---------- Coach overlay on the battle window ---------- */
+
+/* Every overlay element is click-through so the window's own tap handling is unaffected */
+.coach-overlay {
+	pointer-events: none !important;
+	display: none;
+}
+
+/* Only during live play. The charge minigame, shield, swap and end screens use the same space. */
+.battle-window[phase="neutral"][data-coach="learn"] .coach-banner,
+.battle-window[phase="neutral"][data-coach="count"] .coach-banner,
+.battle-window[phase="neutral"][data-coach="learn"] .coach-opp-energy,
+.battle-window[phase="neutral"][data-coach="count"] .coach-opp-taps,
+.battle-window[phase="neutral"][data-coach="learn"] .coach-btn-count,
+.battle-window[phase="neutral"][data-coach="learn"] .coach-badge {
+	display: block;
+}
+
+.battle-window .coach-banner {
+	position: absolute;
+	top: 3px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 12;
+	max-width: 340px;
+	padding: 0 12px;
+	border-radius: 12px;
+	background: rgba(20, 28, 40, 0.85);
+	color: #fff;
+	font-size: 13px;
+	font-weight: bold;
+	line-height: 22px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	box-shadow: 0 0 0 2px transparent;
+}
+
+.battle-window .coach-banner:empty {
+	display: none !important;
+}
+
+.battle-window .coach-banner[data-state="go"],
+.battle-window .coach-banner[data-state="perfect"],
+.battle-window .coach-banner[data-state="good"] {
+	box-shadow: 0 0 0 2px #43c47a;
+}
+
+.battle-window .coach-banner[data-state="wait"] {
+	box-shadow: 0 0 0 2px #6ea2ff;
+}
+
+.battle-window .coach-banner[data-state="warn"],
+.battle-window .coach-banner[data-state="minor"] {
+	box-shadow: 0 0 0 2px #f0a92b;
+}
+
+.battle-window .coach-banner[data-state="bad"] {
+	box-shadow: 0 0 0 2px #ff6b5e;
+}
+
+/* Opponent energy sits in the gap under their HP bar */
+.battle-window .coach-opp-energy {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 100%;
+	margin-top: 5px;
+	height: 7px;
+	border-radius: 4px;
+	background: rgba(0, 0, 0, 0.5);
+}
+
+.battle-window .coach-opp-energy .fill {
+	height: 100%;
+	border-radius: 4px;
+	background: #aecb28;
+	transition: width 0.2s linear;
+}
+
+.battle-window .coach-opp-energy .fill.full {
+	background: #ff9f1c;
+}
+
+.battle-window .coach-opp-energy .tick {
+	position: absolute;
+	top: -2px;
+	bottom: -2px;
+	width: 2px;
+	margin-left: -1px;
+	background: #fff;
+	opacity: 0.85;
+}
+
+.battle-window .coach-opp-energy .tick.reached {
+	background: #ff9f1c;
+}
+
+.battle-window .coach-opp-energy .value,
+.battle-window .coach-opp-taps {
+	position: absolute;
+	padding: 0 6px;
+	border-radius: 8px;
+	background: rgba(20, 28, 40, 0.85);
+	color: #fff;
+	font-size: 12px;
+	font-weight: bold;
+	line-height: 16px;
+	white-space: nowrap;
+}
+
+.battle-window .coach-opp-energy .value {
+	left: 100%;
+	top: -5px;
+	margin-left: 5px;
+}
+
+.battle-window .coach-opp-taps {
+	left: 0;
+	top: 100%;
+	margin-top: 5px;
+}
+
+.battle-window .coach-opp-energy .value:empty,
+.battle-window .coach-opp-taps:empty {
+	display: none;
+}
+
+/* Charged Move buttons: fast moves to ready, and the throw to make */
+.battle-window .controls .move-bar {
+	position: relative;
+}
+
+.battle-window .move-bar .coach-btn-count,
+.battle-window .move-bar .coach-badge {
+	position: absolute;
+	left: 50%;
+	z-index: 5;
+	transform: translateX(-50%);
+	border-radius: 10px;
+	background: rgba(20, 28, 40, 0.9);
+	color: #fff;
+	font-weight: bold;
+	text-align: center;
+	white-space: nowrap;
+}
+
+/* The button clips its children to a circle, so both sit inside it: badge on top, count underneath */
+.battle-window .move-bar .coach-btn-count {
+	bottom: 4px;
+	min-width: 20px;
+	height: 18px;
+	padding: 0 4px;
+	font-size: 12px;
+	line-height: 18px;
+}
+
+.battle-window .move-bar .coach-badge {
+	top: 3px;
+	min-width: 30px;
+	height: 20px;
+	padding: 0 5px;
+	font-size: 13px;
+	line-height: 20px;
+	background: #1f9d55;
+}
+
+.battle-window .move-bar.coach-rec.wait .coach-badge {
+	background: #2563c9;
+}
+
+.battle-window .move-bar.coach-rec.warn .coach-badge {
+	background: #d98a00;
+}
+
+.battle-window .controls .move-bar.coach-rec.go {
+	box-shadow: 0 0 0 4px #43c47a, 0 5px 10px rgba(0, 0, 0, 0.5);
+}
+
+.battle-window .controls .move-bar.coach-rec.wait {
+	box-shadow: 0 0 0 4px #6ea2ff, 0 5px 10px rgba(0, 0, 0, 0.5);
+}
+
+.battle-window .controls .move-bar.coach-rec.warn {
+	box-shadow: 0 0 0 4px #f0a92b, 0 5px 10px rgba(0, 0, 0, 0.5);
+}
+
+.battle-window .move-bar .coach-btn-count:empty,
+.battle-window .move-bar .coach-badge:empty {
+	display: none !important;
+}
+
+/* The charge minigame clones a button; don't copy the overlay into it */
+.charge-window .coach-overlay {
+	display: none !important;
+}
+
+/* Panel as a collapsible details view */
+.coach-panel .coach-toggle {
+	padding: 2px 9px;
+	font-size: 11px;
+	border: 1px solid var(--ac-line);
+	border-radius: 10px;
+	background: var(--ac-card);
+	color: var(--ac-ink);
+	cursor: pointer;
+}
+
+.coach-panel.collapsed {
+	margin-top: 6px;
+	padding-top: 6px;
+	padding-bottom: 6px;
+}
+
+.coach-panel.collapsed .coach-header {
+	margin-bottom: 0;
+}
+
+.coach-panel.collapsed .coach-advice,
+.coach-panel.collapsed .coach-side,
+.coach-panel.collapsed .coach-log {
+	display: none !important;
+}
+
+.coach-plan {
+	margin-top: 6px;
+	font-size: 0.85em;
+	line-height: 1.35;
+	opacity: 0.9;
+}
+
+.academy-load-error {
+	margin: 8px 0;
+	padding: 8px 12px;
+	border-left: 4px solid #d9534f;
+	background: rgba(217, 83, 79, 0.12);
+	font-size: 0.9em;
+}
+
+.academy-install {
+	margin: 8px 0;
+}
+
+.academy-install .install-ios {
+	font-size: 0.9em;
+}

@@ -57,6 +57,7 @@ require_once '../header.php';
 	<div class="ranking-categories mode-select">
 		<a href="<?php echo $WEB_ROOT; ?>train/">Train</a>
 		<a class="selected" href="<?php echo $WEB_ROOT; ?>train/analysis/">Top Performers</a>
+		<a href="<?php echo $WEB_ROOT; ?>academy/">Academy</a>
 	</div>
 
 	<div class="date-updated">Last updated</div>
