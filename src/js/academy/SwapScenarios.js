@@ -246,10 +246,20 @@
 		return ids.map(function (id) { return ctx.weak[id]; });
 	}
 
+	/*
+	* The Pokemon a team may not repeat. A team can't have two of the same Pokemon whatever the form: Shadow and regular,
+	* Kanto and Alolan Ninetales, a Mega and its base, and so on. Pokedex number identifies all of them. (An entry with no
+	* number falls back to its own id, which is the old, weaker rule.)
+	*/
+	function speciesKey(p) {
+		return p.dex !== undefined && p.dex !== null ? "dex" + p.dex : p.id;
+	}
+
 	function pickTeam(rng, pool, wanted) {
 		for (var attempt = 0; attempt < 80; attempt++) {
 			var first = rng.pick(pool);
-			var others = pool.filter(function (p) { return p.id !== first.id; });
+			var different = function (x) { return function (p) { return speciesKey(p) !== speciesKey(x); }; };
+			var others = pool.filter(different(first));
 			var similar = function (x, y) { return similarity(ctx.weak[x.id], ctx.weak[y.id]) >= SIMILAR; };
 			var team = null;
 			var second;
@@ -257,13 +267,13 @@
 
 			if (wanted === "ABA") {
 				second = rng.pick(others.filter(function (p) { return !similar(p, first); }));
-				third = rng.pick(others.filter(function (p) { return similar(p, first) && !similar(p, second || first); }));
+				third = second ? rng.pick(others.filter(different(second)).filter(function (p) { return similar(p, first) && !similar(p, second); })) : null;
 				team = second && third ? [first, second, third] : null;
 			} else if (wanted === "ABB") {
 				second = rng.pick(others.filter(function (p) { return !similar(p, first); }));
 
 				if (second) {
-					third = rng.pick(others.filter(function (p) { return similar(p, second) && !similar(p, first); }));
+					third = rng.pick(others.filter(different(second)).filter(function (p) { return similar(p, second) && !similar(p, first); }));
 				}
 
 				team = second && third ? [first, second, third] : null;
@@ -271,13 +281,13 @@
 				second = rng.pick(others.filter(function (p) { return !similar(p, first); }));
 
 				if (second) {
-					third = rng.pick(others.filter(function (p) { return !similar(p, first) && !similar(p, second); }));
+					third = rng.pick(others.filter(different(second)).filter(function (p) { return !similar(p, first) && !similar(p, second); }));
 				}
 
 				team = second && third ? [first, second, third] : null;
 			}
 
-			if (team && shape(weakSetsFor(team.map(function (p) { return p.id; }))) === wanted && new Set(team.map(function (p) { return p.id; })).size === 3) {
+			if (team && shape(weakSetsFor(team.map(function (p) { return p.id; }))) === wanted && new Set(team.map(speciesKey)).size === 3) {
 				return team;
 			}
 		}
@@ -296,7 +306,8 @@
 				continue;
 			}
 
-			var opp = rng.pick(pool.filter(function (p) { return team.every(function (t) { return t.id !== p.id; }); }));
+			// The opponent is also a different Pokemon from everyone on your team, in any form, so the question never reads like a mirror match
+			var opp = rng.pick(pool.filter(function (p) { return team.every(function (t) { return speciesKey(t) !== speciesKey(p); }); }));
 			var shields = [2, 2];
 
 			if (level >= 2 && rng.chance(0.5)) {

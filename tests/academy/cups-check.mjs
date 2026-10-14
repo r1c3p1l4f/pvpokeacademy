@@ -77,7 +77,19 @@ for (const f of formats) {
 		const KNOWN = ['name', 'title', 'include', 'exclude', 'partySize', 'levelCap', 'presetOnly', 'excludeLowPokemon', 'rankingAlias', 'league', 'link', 'overrides', 'useDefaultMovesets'];
 		const unknownRules = Object.keys(cupData || {}).filter(k => !KNOWN.includes(k));
 
-		return { cp, borrowed: !!(info.exclude && info.exclude.length), bannedPresent, unknownRules, poolSize: pool.length, megas: megas.length, three: three.length, loadoutBad, types: Object.keys(types).length, swap: types['swap.stayOrSwap'] || 0, swapWithMega, failures: failures.slice(0, 3), failureCount: failures.length };
+		// No team may repeat a Pokemon in any form (Shadow and regular, Kanto and Alolan, Mega and base), and the opponent is a
+		// different Pokemon from all of them. Pokedex number identifies every form of one Pokemon.
+		const sameSpecies = [];
+		const swapRng = QuizEngine.createRng(777);
+		for (let i = 0; i < 25; i++) {
+			const q = QuizEngine.generate(swapRng, pool, { categories: ['swap'], level: 1 + (i % 3) });
+			const ids = [...q.params.team, q.params.opp];
+			const dexes = ids.map(id => pool.byId[id].dex);
+			if (dexes.some(d => d === undefined)) sameSpecies.push('no dex for ' + ids.join(','));
+			else if (new Set(dexes).size !== ids.length) sameSpecies.push(ids.join(' / '));
+		}
+
+		return { sameSpecies, cp, borrowed: !!(info.exclude && info.exclude.length), bannedPresent, unknownRules, poolSize: pool.length, megas: megas.length, three: three.length, loadoutBad, types: Object.keys(types).length, swap: types['swap.stayOrSwap'] || 0, swapWithMega, failures: failures.slice(0, 3), failureCount: failures.length };
 	}, [f, QUESTIONS]);
 
 	rows.push({ ...f, ...r });
@@ -119,12 +131,12 @@ for (const f of uiFormats) {
 await browser.close();
 
 for (const r of rows) {
-	console.log(`${r.label.padEnd(44)} pool ${String(r.poolSize).padStart(3)}  megas ${String(r.megas).padStart(2)}  3-move ${String(r.three).padStart(2)}  swap q ${String(r.swap).padStart(2)} (${r.swapWithMega} w/ mega)  types ${r.types}  fails ${r.failureCount}${r.bannedPresent.length ? ' BANNED ' + r.bannedPresent : ''}${r.unknownRules.length ? ' RULES ' + r.unknownRules : ''}`);
+	console.log(`${r.label.padEnd(44)} pool ${String(r.poolSize).padStart(3)}  megas ${String(r.megas).padStart(2)}  3-move ${String(r.three).padStart(2)}  swap q ${String(r.swap).padStart(2)} (${r.swapWithMega} w/ mega)  types ${r.types}  fails ${r.failureCount}${r.bannedPresent.length ? ' BANNED ' + r.bannedPresent : ''}${r.unknownRules.length ? ' RULES ' + r.unknownRules : ''}${r.sameSpecies.length ? ' SAME-SPECIES ' + r.sameSpecies.slice(0, 2).join(' | ') : ''}`);
 	r.failures.forEach(f => console.log('    ' + f));
 	r.loadoutBad.forEach(f => console.log('    LOADOUT ' + f));
 }
 
-assert.equal(rows.filter(r => r.failureCount || r.loadoutBad.length || r.poolSize < 20 || r.bannedPresent.length || r.unknownRules.length).length, 0, 'a format failed');
+assert.equal(rows.filter(r => r.failureCount || r.loadoutBad.length || r.poolSize < 20 || r.bannedPresent.length || r.unknownRules.length || r.sameSpecies.length).length, 0, 'a format failed');
 // Whether the menu offers what the data says it should, derived from the gamemaster and the ranking directory rather than
 // from names: every cup that has a ranking file, and every cup that borrows another's ranking and adds bans of a kind the
 // quiz can apply.

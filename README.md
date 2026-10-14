@@ -94,6 +94,8 @@ Missed cards are remembered per format and only come back in the format they wer
 
 Each scenario simulates your current Pokemon and each swap against the opposing lead, then applies written rules in `SwapScenarios.decide`: stay when winning, swap to the Pokemon that beats the lead, spend the weaker closer first when two answers are close, and stay and trade when nothing beats it. These rules judge the lead matchup and what a swap costs. They don't know the opponent's back line, so treat them as coaching heuristics rather than a solved game.
 
+A team never repeats a Pokemon in any form: Shadow and regular, Kanto and Alolan Ninetales, a Mega and its base all count as the same Pokemon (matched by Pokedex number), and the opposing lead is a different Pokemon from all three. `cups-check.mjs` verifies this for every format.
+
 Team shape letters are derived from the type chart. Two Pokemon share a letter when at least half of their weaknesses overlap: ABC has three different answers, ABB has two back Pokemon that lose to the same things, and ABA has a lead and closer that do.
 
 ### Installable app (PWA)

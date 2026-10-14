@@ -144,6 +144,7 @@
 
 			pool.push({
 				id: r.speciesId,
+				dex: info.dex,
 				name: r.speciesName,
 				types: info.types,
 				mega: (info.tags || []).indexOf("mega") > -1,
